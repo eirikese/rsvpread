@@ -146,9 +146,7 @@
       gap:10px;
     }
 
-    /* -------------------------
-       Reading overlay (clean)
-       ------------------------- */
+    /* Reading overlay (clean) */
     .overlay{
       position:fixed;
       inset:0;
@@ -192,7 +190,7 @@
       align-items:center;
       justify-content:center;
       user-select:none;
-      padding-bottom: 88px; /* space for bottom controls */
+      padding-bottom: 88px;
     }
 
     .wordBox{
@@ -204,7 +202,6 @@
       justify-content:center;
     }
 
-    /* Anchor fixed in center */
     .wordAnchor{
       position:absolute;
       left:50%;
@@ -214,7 +211,6 @@
       will-change: transform;
     }
 
-    /* Whole word shifts sideways to lock red letter */
     .wordInner{
       display:inline-block;
       font-weight:950;
@@ -232,7 +228,6 @@
       text-shadow: 0 0 12px rgba(255,59,48,0.14);
     }
 
-    /* Bottom progress bar */
     .progressWrap{
       position:absolute;
       left:0; right:0;
@@ -254,7 +249,6 @@
       transition: width 90ms linear;
     }
 
-    /* Bottom controls */
     .controls{
       position:absolute;
       left:0; right:0;
@@ -363,7 +357,6 @@
     </div>
   </div>
 
-  <!-- Reading overlay -->
   <div class="overlay" id="overlay">
     <div class="topBar">
       <button class="smallBtn" id="exitBtn">Exit</button>
@@ -391,11 +384,10 @@
   </div>
 
   <script>
-    // PDF.js legacy
     window.pdfjsLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
 
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v13";
-    const STORE_KEY_PREFS = "rsvp_prefs_v12";
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v14";
+    const STORE_KEY_PREFS = "rsvp_prefs_v13";
 
     let selectedWpm = 300;
 
@@ -404,16 +396,15 @@
     let lastPersistedIdx = -1;
 
     let words = [];
-    let idx = 0; // ✅ NEXT word to show
+    let idx = 0; // NEXT word to show
     let timer = null;
     let isPlaying = false;
 
-    // DOM
     const wpmSlider = document.getElementById('wpmSlider');
     const wpmLabel  = document.getElementById('wpmLabel');
 
     const sizeSlider = document.getElementById('sizeSlider');
-    const sizeLabel = document.getElementById('sizeLabel');
+    const sizeLabel  = document.getElementById('sizeLabel');
 
     const pdfBtn = document.getElementById('pdfBtn');
     const pdfInput = document.getElementById('pdfInput');
@@ -443,9 +434,7 @@
 
     const wordInner = document.getElementById('wordInner');
 
-    /* ==========================
-       ORP measurement (pixel perfect)
-       ========================== */
+    // ORP measurement canvas
     const measureCanvas = document.createElement("canvas");
     const measureCtx = measureCanvas.getContext("2d");
 
@@ -494,7 +483,6 @@
       return orp;
     }
 
-    // ✅ render word normally then shift so ORP stays fixed
     function showWordOrpLocked(word) {
       const w = word || "";
       const orp = getOrpIndex(w);
@@ -530,47 +518,61 @@
       progressFill.style.width = (p * 100).toFixed(2) + "%";
     }
 
-    /* ==========================
-       LIVE sentence boundary scan (fixes stuck forward)
-       ========================== */
+    /* ==========================================================
+       ✅ Correct sentence navigation (never sticks)
+       ========================================================== */
+
     function isSentenceEndWord(w) {
       // allow punctuation + quotes/brackets at end
       return /[.!?]["')\]]?$/.test(w || "");
     }
 
-    // last shown word index
+    // last displayed word index
     function shownIndex() {
       return Math.max(0, Math.min(words.length - 1, idx - 1));
     }
 
-    function findNextSentenceStartFromShown() {
-      if (!words.length) return null;
-      const start = shownIndex();
+    // start of current sentence (based on shownIndex)
+    function currentSentenceStart() {
+      if (!words.length) return 0;
+      const s = shownIndex();
 
-      for (let i = start; i < words.length; i++) {
+      // scan backward for sentence end before s
+      for (let i = s - 1; i >= 0; i--) {
+        if (isSentenceEndWord(words[i])) return i + 1;
+      }
+      return 0;
+    }
+
+    // start of previous sentence (before current sentence start)
+    function prevSentenceStart() {
+      if (!words.length) return null;
+
+      const curStart = currentSentenceStart();
+      if (curStart <= 0) return null; // already at first sentence
+
+      // find sentence end BEFORE the current sentence start
+      for (let i = curStart - 2; i >= 0; i--) {
+        if (isSentenceEndWord(words[i])) return i + 1;
+      }
+      return 0;
+    }
+
+    // start of next sentence (after current sentence end)
+    function nextSentenceStart() {
+      if (!words.length) return null;
+
+      const s = shownIndex();
+
+      // scan forward for sentence end at/after shown index
+      for (let i = s; i < words.length; i++) {
         if (isSentenceEndWord(words[i])) {
           const next = i + 1;
           if (next < words.length) return next;
-          return null; // no next sentence
+          return null; // no more sentences
         }
       }
       return null;
-    }
-
-    function findPrevSentenceStartFromShown() {
-      if (!words.length) return null;
-      const start = shownIndex();
-
-      // we want the start of the previous sentence:
-      // find sentence end BEFORE current sentence
-      // scan backwards for a sentence end, then return its +1 (or 0)
-      for (let i = start - 1; i >= 0; i--) {
-        if (isSentenceEndWord(words[i])) {
-          const prevStart = i + 1;
-          return Math.max(0, Math.min(words.length - 1, prevStart));
-        }
-      }
-      return 0;
     }
 
     function jumpToWord(wordIndex) {
@@ -578,14 +580,12 @@
       const wi = Math.max(0, Math.min(words.length - 1, wordIndex));
 
       showWordOrpLocked(words[wi] || "");
-
-      // ✅ idx always means "next word to show"
-      idx = Math.min(words.length, wi + 1);
+      idx = Math.min(words.length, wi + 1); // idx = NEXT word to show
 
       updateProgressBar();
       persistProgressIfPossible(true);
 
-      pause(); // predictable after manual jump
+      pause(); // keep predictable
       updateControlState();
     }
 
@@ -598,16 +598,13 @@
         return;
       }
 
-      const prevStart = findPrevSentenceStartFromShown();
-      const nextStart = findNextSentenceStartFromShown();
-
-      backBtn.disabled = (prevStart === null || prevStart === shownIndex()); // safety
-      nextBtn.disabled = (nextStart === null);
+      backBtn.disabled = (prevSentenceStart() === null);
+      nextBtn.disabled = (nextSentenceStart() === null);
     }
 
-    /* ==========================
+    /* ==========================================================
        Playback
-       ========================== */
+       ========================================================== */
     function step() {
       if (!isPlaying) return;
       if (idx >= words.length) { pause(); return; }
@@ -656,29 +653,27 @@
       document.body.style.overflow='';
     }
 
-    /* ==========================
+    /* ==========================================================
        Buttons
-       ========================== */
+       ========================================================== */
     backBtn.addEventListener('click', () => {
-      if (!words.length) return;
-      const prevStart = findPrevSentenceStartFromShown();
-      if (prevStart === null) return;
-      jumpToWord(prevStart);
+      const p = prevSentenceStart();
+      if (p === null) return;
+      jumpToWord(p);
     });
 
     nextBtn.addEventListener('click', () => {
-      if (!words.length) return;
-      const nextStart = findNextSentenceStartFromShown();
-      if (nextStart === null) return;
-      jumpToWord(nextStart);
+      const n = nextSentenceStart();
+      if (n === null) return;
+      jumpToWord(n);
     });
 
-    pauseBtn.addEventListener('click', () => togglePlayPause());
-    exitBtn.addEventListener('click', () => exitReadingMode());
+    pauseBtn.addEventListener('click', togglePlayPause);
+    exitBtn.addEventListener('click', exitReadingMode);
 
-    /* ==========================
+    /* ==========================================================
        Storage
-       ========================== */
+       ========================================================== */
     function loadSavedTexts() {
       try { return JSON.parse(localStorage.getItem(STORE_KEY_TEXTS) || "{}"); }
       catch { return {}; }
@@ -732,9 +727,9 @@
       resumeHint.textContent = `Loaded: "${currentDocName}" • Resume at ${pct}%`;
     }
 
-    /* ==========================
+    /* ==========================================================
        Prefs
-       ========================== */
+       ========================================================== */
     function loadPrefs() {
       try { return JSON.parse(localStorage.getItem(STORE_KEY_PREFS) || "{}"); }
       catch { return {}; }
@@ -779,15 +774,14 @@
     sizeSlider.addEventListener('input', () => {
       setRsvpScale(parseFloat(sizeSlider.value));
       savePrefs();
-
       if (overlay.classList.contains("show") && words.length) {
         showWordOrpLocked(words[shownIndex()] || "");
       }
     });
 
-    /* ==========================
-       Save / Load UI
-       ========================== */
+    /* ==========================================================
+       Save/Load UI
+       ========================================================== */
     saveBtn.addEventListener('click', ()=>{
       const name=(saveName.value||"").trim();
       const text=normalizeText(textInput.value||"");
@@ -861,9 +855,9 @@
       updateResumeHint();
     });
 
-    /* ==========================
-       Start reading
-       ========================== */
+    /* ==========================================================
+       Start reading (no sentence table needed)
+       ========================================================== */
     startBtn.addEventListener('click', ()=>{
       const raw=normalizeText(textInput.value||"");
       if(!raw){alert("Paste some text first.");return;}
@@ -890,7 +884,6 @@
 
       enterReadingMode();
 
-      // show current word once, advance idx
       const wi = Math.max(0, Math.min(words.length - 1, idx));
       showWordOrpLocked(words[wi] || "");
       idx = Math.min(words.length, wi + 1);
@@ -899,9 +892,9 @@
       play();
     });
 
-    /* ==========================
-       PDF import (robust)
-       ========================== */
+    /* ==========================================================
+       PDF import (robust OCR fallback)
+       ========================================================== */
     pdfBtn.addEventListener('click', ()=>{
       pdfInput.value="";
       pdfInput.click();
@@ -1013,9 +1006,9 @@
       }
     });
 
-    /* ==========================
+    /* ==========================================================
        Init
-       ========================== */
+       ========================================================== */
     function init() {
       applyPrefs();
       refreshSavedDropdown();
