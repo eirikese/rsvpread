@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#000000" />
+  <title>RSVP Speed Reader</title>
+
+  <style>
+    :root{
+      --bg:#000;
+      --fg:#fff;
+      --accent:#ff3b30; /* iOS red-ish */
+      --muted:#a0a0a0;
+      --card:#111;
+      --border:#222;
+      --btn:#1c1c1e;
+      --btn2:#2c2c2e;
+    }
+
+    *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body{
+      margin:0; height:100%; background:var(--bg); color:var(--fg);
+      font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* App shell */
+    .app{
+      min-height:100%;
+      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) 16px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      padding-top:10px;
+    }
+
+    .title{
+      font-weight:700;
+      letter-spacing:0.2px;
+      font-size:20px;
+    }
+
+    .subtitle{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:4px;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+    }
+
+    /* WPM buttons */
+    .wpmRow{
+      display:flex;
+      gap:8px;
+      overflow-x:auto;
+      padding-bottom:6px;
+      scrollbar-width:none;
+    }
+    .wpmRow::-webkit-scrollbar{ display:none; }
+
+    .wpmBtn{
+      flex:0 0 auto;
+      padding:10px 12px;
+      border-radius:12px;
+      background:var(--btn);
+      border:1px solid var(--border);
+      color:var(--fg);
+      font-weight:600;
+      font-size:14px;
+      min-width:72px;
+    }
+    .wpmBtn.active{
+      outline:2px solid var(--accent);
+      border-color: transparent;
+    }
+
+    /* Text area */
+    textarea{
+      width:100%;
+      min-height:180px;
+      resize:none;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#050505;
+      color:var(--fg);
+      padding:12px;
+      font-size:15px;
+      line-height:1.35;
+      outline:none;
+    }
+    textarea::placeholder{ color:#666; }
+
+    .actions{
+      display:flex;
+      gap:10px;
+    }
+
+    button{
+      border:none;
+      border-radius:14px;
+      padding:14px 14px;
+      font-size:16px;
+      font-weight:700;
+      background:var(--btn2);
+      color:var(--fg);
+    }
+    .primary{
+      background:var(--accent);
+      color:#000;
+    }
+
+    .hint{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+
+    /* Reading overlay */
+    .overlay{
+      position:fixed;
+      inset:0;
+      background:#000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) 16px;
+      z-index:9999;
+    }
+    .overlay.show{ display:flex; }
+
+    .overlayInner{
+      width:100%;
+      max-width:640px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      align-items:center;
+      justify-content:center;
+      user-select:none;
+    }
+
+    .topBar{
+      position:absolute;
+      top: env(safe-area-inset-top);
+      left:0; right:0;
+      padding: 10px 16px 8px 16px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      pointer-events:none;
+    }
+    .topBar > *{ pointer-events:auto; }
+
+    .smallBtn{
+      padding:10px 12px;
+      border-radius:12px;
+      background:var(--btn);
+      border:1px solid var(--border);
+      font-weight:700;
+      font-size:14px;
+    }
+
+    .status{
+      color:var(--muted);
+      font-size:12px;
+      font-weight:600;
+    }
+
+    /* RSVP word display */
+    .wordBox{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:140px;
+    }
+
+    .word{
+      font-weight:800;
+      font-size: clamp(44px, 8vw, 86px);
+      letter-spacing: 0.5px;
+      line-height:1;
+      display:flex;
+      align-items:baseline;
+      justify-content:center;
+      font-variant-ligatures:none;
+    }
+
+    /* Keep ORP centered using fixed left/right space */
+    .left, .right{
+      display:inline-block;
+      min-width: 2ch;
+      text-align:right;
+      color:var(--fg);
+      opacity:0.95;
+    }
+    .right{
+      min-width: 2ch;
+      text-align:left;
+    }
+
+    .center{
+      color:var(--accent);
+      padding:0 2px;
+      text-shadow: 0 0 10px rgba(255,59,48,0.15);
+    }
+
+    .pauseBadge{
+      margin-top:6px;
+      color:var(--muted);
+      font-size:14px;
+      font-weight:600;
+      opacity:0;
+      transform: translateY(-6px);
+      transition: 120ms ease;
+    }
+    .pauseBadge.show{
+      opacity:1;
+      transform: translateY(0px);
+    }
+
+    /* Make whole screen tappable */
+    .tapCatcher{
+      position:absolute;
+      inset:0;
+      background:transparent;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app" id="home">
+    <header>
+      <div>
+        <div class="title">RSVP Speed Reader</div>
+        <div class="subtitle">Tap to pause while reading</div>
+      </div>
+    </header>
+
+    <div class="card">
+      <div style="font-weight:700; margin-bottom:10px;">Words per minute</div>
+      <div class="wpmRow" id="wpmRow"></div>
+      <div class="hint">Pick a speed (200–900 WPM)</div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700; margin-bottom:10px;">Paste text</div>
+      <textarea id="textInput" placeholder="Paste or type your text here..."></textarea>
+      <div class="hint" style="margin-top:8px;">
+        Tip: Short taps pause/resume during reading. Use Exit to go back.
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="startBtn" style="flex:1;">Start Reading</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="hint">
+      iPhone home screen: open in Safari → Share → <b>Add to Home Screen</b>.
+    </div>
+  </div>
+
+  <!-- Reading overlay -->
+  <div class="overlay" id="overlay">
+    <div class="tapCatcher" id="tapCatcher" aria-label="Tap to pause/resume"></div>
+
+    <div class="topBar">
+      <div class="status" id="statusText">Playing • 300 WPM</div>
+      <button class="smallBtn" id="exitBtn">Exit</button>
+    </div>
+
+    <div class="overlayInner">
+      <div class="wordBox">
+        <div class="word" aria-live="polite" aria-atomic="true">
+          <span class="left" id="leftPart"></span>
+          <span class="center" id="centerPart"></span>
+          <span class="right" id="rightPart"></span>
+        </div>
+      </div>
+
+      <div class="pauseBadge" id="pauseBadge">Paused</div>
+      <div class="hint" style="text-align:center;">
+        Tap anywhere to pause/resume
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- WPM UI ----------
+    const wpmPresets = [200,300,400,500,600,700,800,900];
+    let selectedWpm = 300;
+
+    const wpmRow = document.getElementById('wpmRow');
+
+    function renderWpmButtons() {
+      wpmRow.innerHTML = '';
+      wpmPresets.forEach(wpm => {
+        const btn = document.createElement('button');
+        btn.className = 'wpmBtn' + (wpm === selectedWpm ? ' active' : '');
+        btn.textContent = wpm + ' WPM';
+        btn.onclick = () => {
+          selectedWpm = wpm;
+          renderWpmButtons();
+        };
+        wpmRow.appendChild(btn);
+      });
+    }
+    renderWpmButtons();
+
+    // ---------- RSVP Logic ----------
+    const textInput = document.getElementById('textInput');
+    const startBtn = document.getElementById('startBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const overlay = document.getElementById('overlay');
+    const exitBtn = document.getElementById('exitBtn');
+    const tapCatcher = document.getElementById('tapCatcher');
+
+    const leftPart = document.getElementById('leftPart');
+    const centerPart = document.getElementById('centerPart');
+    const rightPart = document.getElementById('rightPart');
+
+    const statusText = document.getElementById('statusText');
+    const pauseBadge = document.getElementById('pauseBadge');
+
+    let words = [];
+    let idx = 0;
+    let timer = null;
+    let isPlaying = false;
+
+    function normalizeText(str) {
+      return str
+        .replace(/\s+/g, ' ')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .trim();
+    }
+
+    function tokenize(str) {
+      // Split on spaces but keep punctuation attached to words (simple + fast)
+      // Example: "hello," stays as one token.
+      return str.split(' ').filter(Boolean);
+    }
+
+    // ORP = "Optimal Recognition Point" (Spritz-like)
+    function getOrpIndex(word) {
+      const len = word.length;
+
+      // Ignore pure punctuation tokens
+      const lettersOnly = word.replace(/[^A-Za-z0-9ÅÆØåæø]/g, '');
+      if (!lettersOnly) return Math.min(0, len - 1);
+
+      // A simple, practical ORP rule:
+      // ~35% into the word, clamped to [1, len-2] where possible.
+      let orp = Math.round(len * 0.35);
+
+      if (len <= 1) orp = 0;
+      else if (len === 2) orp = 0;
+      else {
+        orp = Math.max(1, Math.min(len - 2, orp));
+      }
+      return orp;
+    }
+
+    function splitForDisplay(word) {
+      const orp = getOrpIndex(word);
+      const left = word.slice(0, orp);
+      const center = word[orp] ?? '';
+      const right = word.slice(orp + 1);
+
+      return { left, center, right };
+    }
+
+    function msPerWord(wpm) {
+      // 60,000 ms / words per minute
+      return 60000 / wpm;
+    }
+
+    function extraDelay(word) {
+      // Add tiny pauses for punctuation (feels more natural)
+      if (/[.!?]$/.test(word)) return 220;
+      if (/[,;:]$/.test(word)) return 120;
+      if (word.length >= 10) return 80;
+      return 0;
+    }
+
+    function showWord(word) {
+      const parts = splitForDisplay(word);
+      leftPart.textContent = parts.left;
+      centerPart.textContent = parts.center;
+      rightPart.textContent = parts.right;
+    }
+
+    function updateStatus() {
+      statusText.textContent = (isPlaying ? 'Playing' : 'Paused') + ' • ' + selectedWpm + ' WPM';
+      pauseBadge.classList.toggle('show', !isPlaying);
+    }
+
+    function step() {
+      if (!isPlaying) return;
+      if (idx >= words.length) {
+        pause(); // stop at end
+        return;
+      }
+
+      const w = words[idx++];
+      showWord(w);
+
+      const delay = msPerWord(selectedWpm) + extraDelay(w);
+
+      clearTimeout(timer);
+      timer = setTimeout(step, delay);
+    }
+
+    function play() {
+      if (words.length === 0) return;
+      isPlaying = true;
+      updateStatus();
+      step();
+    }
+
+    function pause() {
+      isPlaying = false;
+      updateStatus();
+      clearTimeout(timer);
+      timer = null;
+    }
+
+    function togglePlayPause() {
+      if (!overlay.classList.contains('show')) return;
+      if (isPlaying) pause();
+      else play();
+    }
+
+    function enterReadingMode() {
+      overlay.classList.add('show');
+      // Prevent body scrolling behind overlay
+      document.body.style.overflow = 'hidden';
+    }
+
+    function exitReadingMode() {
+      pause();
+      overlay.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+
+    startBtn.addEventListener('click', () => {
+      const raw = normalizeText(textInput.value);
+      if (!raw) {
+        alert('Paste some text first.');
+        return;
+      }
+
+      words = tokenize(raw);
+      idx = 0;
+
+      enterReadingMode();
+      showWord(words[0] || '');
+      play();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      textInput.value = '';
+      textInput.focus();
+    });
+
+    exitBtn.addEventListener('click', () => {
+      exitReadingMode();
+    });
+
+    // Tap anywhere in reading mode pauses (tap again resumes)
+    tapCatcher.addEventListener('click', () => {
+      togglePlayPause();
+    });
+
+    // Spacebar toggle on desktop
+    window.addEventListener('keydown', (e) => {
+      if (!overlay.classList.contains('show')) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      }
+      if (e.key === 'Escape') {
+        exitReadingMode();
+      }
+    });
+
+    // Default selection highlight
+    selectedWpm = 300;
+    renderWpmButtons();
+  </script>
+</body>
+</html>
