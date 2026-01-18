@@ -23,8 +23,7 @@
       --border:#222;
       --btn:#1c1c1e;
       --btn2:#2c2c2e;
-
-      --rsvpScale: 1.0; /* 0.2 - 2.0 => 20% - 200% */
+      --rsvpScale: 1.0; /* 20%..200% => 0.2..2.0 */
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -51,17 +50,8 @@
       padding-top:10px;
     }
 
-    .title{
-      font-weight:950;
-      letter-spacing:0.2px;
-      font-size:20px;
-    }
-
-    .subtitle{
-      color:var(--muted);
-      font-size:12px;
-      margin-top:4px;
-    }
+    .title{ font-weight:950; letter-spacing:0.2px; font-size:20px; }
+    .subtitle{ color:var(--muted); font-size:12px; margin-top:4px; }
 
     .card{
       background:var(--card);
@@ -70,11 +60,7 @@
       padding:12px;
     }
 
-    .hint{
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.35;
-    }
+    .hint{ color:var(--muted); font-size:12px; line-height:1.35; }
 
     .row{
       display:flex;
@@ -92,10 +78,7 @@
       background:var(--btn2);
       color:var(--fg);
     }
-    .primary{
-      background:var(--accent);
-      color:#000;
-    }
+    .primary{ background:var(--accent); color:#000; }
 
     .miniBtn{
       padding:10px 12px;
@@ -133,10 +116,7 @@
     }
     textarea::placeholder{ color:#666; }
 
-    .actions{
-      display:flex;
-      gap:10px;
-    }
+    .actions{ display:flex; gap:10px; }
 
     .sliderWrap{
       display:flex;
@@ -144,10 +124,8 @@
       gap:12px;
       margin-top:10px;
     }
-    .sliderWrap label{
-      font-weight:950;
-      min-width: 70px;
-    }
+    .sliderWrap label{ font-weight:950; min-width:70px; }
+
     .pill{
       padding:6px 10px;
       border-radius:999px;
@@ -248,9 +226,7 @@
       color:var(--fg);
       opacity:0.96;
     }
-    .right{
-      text-align:left;
-    }
+    .right{ text-align:left; }
 
     .center{
       color:var(--accent);
@@ -287,9 +263,7 @@
     <header>
       <div>
         <div class="title">RSVP Speed Reader</div>
-        <div class="subtitle">
-          Tap to pause • Swipe sentence when paused
-        </div>
+        <div class="subtitle">Tap to pause • Swipe sentence when paused</div>
       </div>
     </header>
 
@@ -351,7 +325,7 @@
 
   <!-- Reading overlay -->
   <div class="overlay" id="overlay">
-    <div class="tapCatcher" id="tapCatcher" aria-label="Tap to pause/resume"></div>
+    <div class="tapCatcher" id="tapCatcher"></div>
 
     <div class="topBar">
       <button class="smallBtn" id="exitBtn">Exit</button>
@@ -375,16 +349,20 @@
   </div>
 
   <script>
+    // ---- PDF.js worker fix (CRITICAL) ----
+    // Without this, Safari/GitHub Pages often fails to load PDFs.
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
+    } catch (e) {
+      // ignore
+    }
+
     // -------------------------
     // LocalStorage keys
     // -------------------------
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v4";
-    const STORE_KEY_PREFS = "rsvp_prefs_v3";
-
-    // saved map shape:
-    // {
-    //   "Name": { text: "...", progressWordIndex: 123, updatedAt: 1234567890 }
-    // }
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v5";
+    const STORE_KEY_PREFS = "rsvp_prefs_v4";
 
     // -------------------------
     // State
@@ -400,7 +378,6 @@
     let timer = null;
     let isPlaying = false;
 
-    // sentence navigation support
     let sentenceStarts = [];
     let wordToSentence = [];
 
@@ -447,17 +424,14 @@
       try { return JSON.parse(localStorage.getItem(STORE_KEY_TEXTS) || "{}"); }
       catch { return {}; }
     }
-
     function saveSavedTexts(map) {
       localStorage.setItem(STORE_KEY_TEXTS, JSON.stringify(map));
     }
-
     function refreshSavedDropdown() {
       const map = loadSavedTexts();
       const current = savedSelect.value;
 
       savedSelect.innerHTML = '<option value="">Load saved text…</option>';
-
       Object.keys(map).sort((a,b)=>a.localeCompare(b)).forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
@@ -475,17 +449,14 @@
       try { return JSON.parse(localStorage.getItem(STORE_KEY_PREFS) || "{}"); }
       catch { return {}; }
     }
-
     function savePrefs() {
       localStorage.setItem(STORE_KEY_PREFS, JSON.stringify({
         wpm: selectedWpm,
         scale: parseFloat(sizeSlider.value)
       }));
     }
-
     function applyPrefs() {
       const prefs = loadPrefs();
-
       if (prefs.wpm) {
         const w = Math.max(100, Math.min(900, Math.round(prefs.wpm / 100) * 100));
         selectedWpm = w;
@@ -518,7 +489,6 @@
       document.documentElement.style.setProperty('--rsvpScale', String(scale));
       sizeLabel.textContent = Math.round(scale * 100) + "%";
     }
-
     sizeSlider.addEventListener('input', () => {
       setRsvpScale(parseFloat(sizeSlider.value));
       savePrefs();
@@ -540,7 +510,6 @@
     }
 
     function splitIntoSentences(str) {
-      // Practical sentence splitter
       const parts = str.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
       return (parts || []).map(s => s.trim()).filter(Boolean);
     }
@@ -558,9 +527,7 @@
         if (w.length === 0) return;
 
         starts.push(runningWordIndex);
-        for (let i = 0; i < w.length; i++) {
-          map[runningWordIndex + i] = si;
-        }
+        for (let i = 0; i < w.length; i++) map[runningWordIndex + i] = si;
 
         allWords.push(...w);
         runningWordIndex += w.length;
@@ -571,7 +538,6 @@
         fallback.forEach((_, wi) => map[wi] = 0);
         return { words: fallback, sentenceStarts: [0], wordToSentence: map };
       }
-
       return { words: allWords, sentenceStarts: starts, wordToSentence: map };
     }
 
@@ -588,27 +554,26 @@
     }
 
     function splitForDisplay(word) {
-      const orp = getOrpIndex(word);
+      const orp = getOrpIndex(word || "");
       return {
-        left: word.slice(0, orp),
-        center: word[orp] ?? '',
-        right: word.slice(orp + 1),
+        left: (word || "").slice(0, orp),
+        center: (word || "")[orp] ?? '',
+        right: (word || "").slice(orp + 1),
       };
     }
 
     function showWord(word) {
-      const parts = splitForDisplay(word || "");
-      leftPart.textContent = parts.left;
-      centerPart.textContent = parts.center;
-      rightPart.textContent = parts.right;
+      const p = splitForDisplay(word || "");
+      leftPart.textContent = p.left;
+      centerPart.textContent = p.center;
+      rightPart.textContent = p.right;
     }
 
     function msPerWord(wpm) { return 60000 / wpm; }
-
     function extraDelay(word) {
       if (/[.!?]$/.test(word)) return 220;
       if (/[,;:]$/.test(word)) return 120;
-      if (word.length >= 10) return 80;
+      if ((word || "").length >= 10) return 80;
       return 0;
     }
 
@@ -632,7 +597,6 @@
       const map = loadSavedTexts();
       const entry = map[currentDocName];
       if (!entry) return;
-
       if ((entry.text || "") !== currentDocText) return;
 
       entry.progressWordIndex = Math.max(0, Math.min(words.length - 1, idx));
@@ -662,10 +626,7 @@
     // -------------------------
     function step() {
       if (!isPlaying) return;
-      if (idx >= words.length) {
-        pause();
-        return;
-      }
+      if (idx >= words.length) { pause(); return; }
 
       const w = words[idx++];
       showWord(w);
@@ -678,12 +639,7 @@
       timer = setTimeout(step, delay);
     }
 
-    function play() {
-      if (words.length === 0) return;
-      isPlaying = true;
-      step();
-    }
-
+    function play() { if (!words.length) return; isPlaying = true; step(); }
     function pause() {
       isPlaying = false;
       clearTimeout(timer);
@@ -693,20 +649,11 @@
 
     function togglePlayPause() {
       if (!overlay.classList.contains('show')) return;
-      if (isPlaying) pause();
-      else play();
+      if (isPlaying) pause(); else play();
     }
 
-    function enterReadingMode() {
-      overlay.classList.add('show');
-      document.body.style.overflow = 'hidden';
-    }
-
-    function exitReadingMode() {
-      pause();
-      overlay.classList.remove('show');
-      document.body.style.overflow = '';
-    }
+    function enterReadingMode() { overlay.classList.add('show'); document.body.style.overflow='hidden'; }
+    function exitReadingMode() { pause(); overlay.classList.remove('show'); document.body.style.overflow=''; }
 
     // -------------------------
     // Sentence navigation (ONLY when paused)
@@ -726,315 +673,266 @@
       persistProgressIfPossible(true);
     }
 
-    function nextSentence() {
-      const s = getCurrentSentenceIndex();
-      jumpToSentence(s + 1);
-    }
+    function nextSentence() { jumpToSentence(getCurrentSentenceIndex() + 1); }
+    function prevSentence() { jumpToSentence(getCurrentSentenceIndex() - 1); }
 
-    function prevSentence() {
-      const s = getCurrentSentenceIndex();
-      jumpToSentence(s - 1);
-    }
+    // Tap always toggles, swipe only when paused
+    let touchStartX=0, touchStartY=0, touchStartT=0;
+    tapCatcher.addEventListener('touchstart', (e)=>{
+      const t=e.changedTouches[0];
+      touchStartX=t.clientX; touchStartY=t.clientY; touchStartT=performance.now();
+    }, {passive:true});
 
-    // -------------------------
-    // Robust tap vs swipe:
-    // - Tap ALWAYS toggles pause/resume
-    // - Swipe ONLY works when paused
-    // -------------------------
-    let touchStartX = 0, touchStartY = 0, touchStartT = 0;
+    tapCatcher.addEventListener('touchend', (e)=>{
+      const t=e.changedTouches[0];
+      const dx=t.clientX-touchStartX;
+      const dy=t.clientY-touchStartY;
+      const dt=performance.now()-touchStartT;
 
-    tapCatcher.addEventListener('touchstart', (e) => {
-      const t = e.changedTouches[0];
-      touchStartX = t.clientX;
-      touchStartY = t.clientY;
-      touchStartT = performance.now();
-    }, { passive: true });
-
-    tapCatcher.addEventListener('touchend', (e) => {
-      const t = e.changedTouches[0];
-      const dx = t.clientX - touchStartX;
-      const dy = t.clientY - touchStartY;
-      const dt = performance.now() - touchStartT;
-
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-
-      const isSwipe = (absX > 60 && absY < 35 && dt < 650);
+      const absX=Math.abs(dx), absY=Math.abs(dy);
+      const isSwipe=(absX>60 && absY<35 && dt<650);
 
       if (!isPlaying && isSwipe) {
-        if (dx < 0) nextSentence();
-        else prevSentence();
+        if (dx < 0) nextSentence(); else prevSentence();
         return;
       }
-
       togglePlayPause();
-    }, { passive: true });
+    }, {passive:true});
 
-    // Desktop click toggles
-    tapCatcher.addEventListener('click', () => togglePlayPause());
+    tapCatcher.addEventListener('click', ()=>togglePlayPause());
 
     // -------------------------
     // Save/Load/Delete/Restart
     // -------------------------
-    saveBtn.addEventListener('click', () => {
-      const name = (saveName.value || "").trim();
-      const text = normalizeText(textInput.value || "");
+    saveBtn.addEventListener('click', ()=>{
+      const name=(saveName.value||"").trim();
+      const text=normalizeText(textInput.value||"");
+      if(!name){alert("Give it a name first.");return;}
+      if(!text){alert("Nothing to save — paste some text first.");return;}
 
-      if (!name) { alert("Give it a name first."); return; }
-      if (!text) { alert("Nothing to save — paste some text first."); return; }
+      const map=loadSavedTexts();
+      const prev=map[name];
+      let progressWordIndex=0;
+      if(prev && (prev.text||"")===text) progressWordIndex=prev.progressWordIndex||0;
 
-      const map = loadSavedTexts();
-      const prev = map[name];
-
-      let progressWordIndex = 0;
-      if (prev && (prev.text || "") === text) progressWordIndex = prev.progressWordIndex || 0;
-
-      map[name] = { text, progressWordIndex, updatedAt: Date.now() };
+      map[name]={text, progressWordIndex, updatedAt:Date.now()};
       saveSavedTexts(map);
 
-      currentDocName = name;
-      currentDocText = text;
+      currentDocName=name;
+      currentDocText=text;
 
       refreshSavedDropdown();
-      savedSelect.value = name;
+      savedSelect.value=name;
       updateResumeHint();
-
       alert("Saved ✅");
     });
 
-    loadBtn.addEventListener('click', () => {
-      const name = savedSelect.value;
-      if (!name) { alert("Pick a saved item to load."); return; }
+    loadBtn.addEventListener('click', ()=>{
+      const name=savedSelect.value;
+      if(!name){alert("Pick a saved item to load.");return;}
+      const map=loadSavedTexts();
+      const entry=map[name];
+      if(!entry){alert("That saved text is missing.");refreshSavedDropdown();return;}
 
-      const map = loadSavedTexts();
-      const entry = map[name];
-      if (!entry) { alert("That saved text is missing."); refreshSavedDropdown(); return; }
-
-      currentDocName = name;
-      currentDocText = normalizeText(entry.text || "");
-      textInput.value = currentDocText;
-
+      currentDocName=name;
+      currentDocText=normalizeText(entry.text||"");
+      textInput.value=currentDocText;
       updateResumeHint();
     });
 
-    deleteBtn.addEventListener('click', () => {
-      const name = savedSelect.value;
-      if (!name) { alert("Pick a saved item to delete."); return; }
-      if (!confirm(`Delete "${name}"?`)) return;
+    deleteBtn.addEventListener('click', ()=>{
+      const name=savedSelect.value;
+      if(!name){alert("Pick a saved item to delete.");return;}
+      if(!confirm(`Delete "${name}"?`)) return;
 
-      const map = loadSavedTexts();
+      const map=loadSavedTexts();
       delete map[name];
       saveSavedTexts(map);
 
-      if (currentDocName === name) {
-        currentDocName = "";
-        currentDocText = "";
-      }
-
+      if(currentDocName===name){currentDocName="";currentDocText="";}
       refreshSavedDropdown();
       updateResumeHint();
-      textInput.focus();
     });
 
-    restartBtn.addEventListener('click', () => {
-      if (!currentDocName) {
-        alert("Load a saved text to restart its progress.");
-        return;
-      }
-      const map = loadSavedTexts();
-      const entry = map[currentDocName];
-      if (!entry) return;
+    restartBtn.addEventListener('click', ()=>{
+      if(!currentDocName){alert("Load a saved text to restart its progress.");return;}
+      const map=loadSavedTexts();
+      const entry=map[currentDocName];
+      if(!entry) return;
 
-      entry.progressWordIndex = 0;
-      entry.updatedAt = Date.now();
-      map[currentDocName] = entry;
+      entry.progressWordIndex=0;
+      entry.updatedAt=Date.now();
+      map[currentDocName]=entry;
       saveSavedTexts(map);
-
       updateResumeHint();
       alert("Progress reset ✅");
     });
 
-    clearBtn.addEventListener('click', () => {
-      textInput.value = "";
-      currentDocName = "";
-      currentDocText = "";
+    clearBtn.addEventListener('click', ()=>{
+      textInput.value="";
+      currentDocName="";
+      currentDocText="";
       updateResumeHint();
-      textInput.focus();
     });
 
     // -------------------------
-    // Start Reading (auto resume)
+    // Start reading (auto resume)
     // -------------------------
-    startBtn.addEventListener('click', () => {
-      const raw = normalizeText(textInput.value || "");
-      if (!raw) { alert("Paste some text first."); return; }
+    startBtn.addEventListener('click', ()=>{
+      const raw=normalizeText(textInput.value||"");
+      if(!raw){alert("Paste some text first.");return;}
 
-      const built = buildSentenceIndexing(raw);
-      words = built.words;
-      sentenceStarts = built.sentenceStarts;
-      wordToSentence = built.wordToSentence;
+      const built=buildSentenceIndexing(raw);
+      words=built.words;
+      sentenceStarts=built.sentenceStarts;
+      wordToSentence=built.wordToSentence;
 
-      idx = 0;
+      idx=0;
 
-      if (currentDocName) {
-        const map = loadSavedTexts();
-        const entry = map[currentDocName];
-        if (entry && normalizeText(entry.text || "") === raw) {
-          currentDocText = raw;
-          idx = Math.max(0, Math.min(words.length - 1, entry.progressWordIndex || 0));
+      if(currentDocName){
+        const map=loadSavedTexts();
+        const entry=map[currentDocName];
+        if(entry && normalizeText(entry.text||"")===raw){
+          currentDocText=raw;
+          idx=Math.max(0, Math.min(words.length-1, entry.progressWordIndex||0));
         } else {
-          currentDocText = raw;
-          idx = 0;
+          currentDocText=raw;
+          idx=0;
         }
       } else {
-        currentDocText = raw;
+        currentDocText=raw;
       }
 
-      lastPersistedIdx = -1;
+      lastPersistedIdx=-1;
 
       enterReadingMode();
-      showWord(words[idx] || "");
+      showWord(words[idx]||"");
       updateProgressBar();
       play();
     });
 
-    exitBtn.addEventListener('click', () => {
-      exitReadingMode();
-    });
+    exitBtn.addEventListener('click', ()=>exitReadingMode());
 
     // -------------------------
-    // Robust PDF loading (AUTO under the hood)
-    // - Fast extract text from each page
-    // - If page has low text, OCR that page
-    // - Works for mixed PDFs (text + image pages)
+    // PDF import (fixed + robust)
     // -------------------------
-    pdfBtn.addEventListener('click', () => {
-      pdfInput.value = "";
+    pdfBtn.addEventListener('click', ()=>{
+      pdfInput.value="";
       pdfInput.click();
     });
 
-    async function renderPageToCanvas(page, scale=2.0) {
+    async function renderPageToCanvas(page, scale=2.1){
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const ctx = canvas.getContext("2d", { willReadFrequently:true });
       canvas.width = Math.floor(viewport.width);
       canvas.height = Math.floor(viewport.height);
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await page.render({ canvasContext:ctx, viewport }).promise;
       return canvas;
     }
 
-    function cleanOcrText(t) {
+    function cleanOcrText(t){
       return normalizeText(
-        (t || "")
-          .replace(/-\s+/g, "")          // fix hyphen line breaks
-          .replace(/\s+\n/g, "\n")
+        (t||"")
+          .replace(/-\s+/g, "")
           .replace(/\n{3,}/g, "\n\n")
           .replace(/[ \t]{2,}/g, " ")
       );
     }
 
-    async function extractPdfSmartAuto(file) {
+    async function openPdfDocument(uint8) {
+      // First attempt: normal worker mode
+      try {
+        const loadingTask = pdfjsLib.getDocument({ data:uint8 });
+        return await loadingTask.promise;
+      } catch (e) {
+        // Fallback: disableWorker (more compatible on iOS / homescreen)
+        const loadingTask = pdfjsLib.getDocument({ data:uint8, disableWorker:true });
+        return await loadingTask.promise;
+      }
+    }
+
+    async function extractPdfSmartAuto(file){
       const buf = await file.arrayBuffer();
       const uint8 = new Uint8Array(buf);
 
       pdfStatus.textContent = "Opening PDF…";
-
-      const loadingTask = pdfjsLib.getDocument({ data: uint8 });
-      const pdf = await loadingTask.promise;
+      const pdf = await openPdfDocument(uint8);
 
       const pageCount = pdf.numPages;
 
-      // OCR worker created once (much faster than creating per page)
+      // Create ONE OCR worker
       const worker = await Tesseract.createWorker("eng");
 
-      // Heuristics:
-      // - OCR only when extracted text is "too small"
-      // - Limit OCR to avoid freezing big PDFs on iPhone
-      const OCR_TEXT_THRESHOLD = 60;   // chars per page considered "real text"
-      const MAX_OCR_PAGES = 35;        // safety cap (auto)
+      // OCR only when needed, cap OCR pages automatically for iPhone safety
+      const OCR_TEXT_THRESHOLD = 60; // chars/page
+      const MAX_OCR_PAGES = 35;
       let ocrUsed = 0;
 
       const out = [];
 
-      try {
-        for (let p = 1; p <= pageCount; p++) {
+      try{
+        for(let p=1; p<=pageCount; p++){
           pdfStatus.textContent = `Reading PDF… Page ${p}/${pageCount}`;
-
           const page = await pdf.getPage(p);
 
-          // Fast extraction
+          // Fast text extraction per page
           let fastText = "";
-          try {
+          try{
             const content = await page.getTextContent();
-            const strings = content.items
-              .map(it => (it.str || "").trim())
-              .filter(Boolean);
+            const strings = content.items.map(it => (it.str||"").trim()).filter(Boolean);
             fastText = strings.join(" ");
-          } catch {
-            fastText = "";
-          }
+          } catch { fastText = ""; }
 
-          // Decide if OCR needed
-          const shouldOcr = normalizeText(fastText).length < OCR_TEXT_THRESHOLD;
+          const fastLen = normalizeText(fastText).length;
+          const shouldOcr = fastLen < OCR_TEXT_THRESHOLD;
 
-          if (!shouldOcr) {
+          if(!shouldOcr){
             out.push(normalizeText(fastText));
             continue;
           }
 
-          // OCR fallback (auto)
-          if (ocrUsed >= MAX_OCR_PAGES) {
-            // If we hit cap, still add whatever fast text exists (even if small)
+          if(ocrUsed >= MAX_OCR_PAGES){
             out.push(normalizeText(fastText));
             continue;
           }
 
           ocrUsed++;
           pdfStatus.textContent = `OCR… Page ${p}/${pageCount}`;
-
-          // Render page to canvas and OCR it
           const canvas = await renderPageToCanvas(page, 2.2);
           const { data } = await worker.recognize(canvas);
-
           const ocrText = cleanOcrText(data?.text || "");
-          // If OCR got nothing, fallback to fast
           out.push(ocrText || normalizeText(fastText));
         }
       } finally {
         await worker.terminate();
       }
 
-      const finalText = normalizeText(out.filter(Boolean).join("\n\n"));
-      return { text: finalText, pages: pageCount, ocrPages: ocrUsed };
+      return { text: normalizeText(out.filter(Boolean).join("\n\n")), pages:pageCount, ocrPages:ocrUsed };
     }
 
-    pdfInput.addEventListener('change', async () => {
+    pdfInput.addEventListener('change', async ()=>{
       const file = pdfInput.files && pdfInput.files[0];
-      if (!file) return;
+      if(!file) return;
 
       pdfStatus.textContent = "Loading PDF…";
 
-      try {
-        const result = await extractPdfSmartAuto(file);
-
-        if (!result.text) {
+      try{
+        const res = await extractPdfSmartAuto(file);
+        if(!res.text){
           pdfStatus.textContent = "PDF loaded, but no readable text found.";
-          alert("No readable text found in this PDF.");
+          alert("No readable text found.");
           return;
         }
-
-        textInput.value = result.text;
-
-        const k = Math.round(result.text.length/1000);
-        if (result.ocrPages > 0) {
-          pdfStatus.textContent = `PDF loaded ✅ (${result.pages} pages, OCR ${result.ocrPages}p, ~${k}k chars)`;
-        } else {
-          pdfStatus.textContent = `PDF loaded ✅ (${result.pages} pages, ~${k}k chars)`;
-        }
-      } catch (err) {
+        textInput.value = res.text;
+        const k = Math.round(res.text.length/1000);
+        pdfStatus.textContent = res.ocrPages > 0
+          ? `PDF loaded ✅ (${res.pages} pages, OCR ${res.ocrPages}p, ~${k}k chars)`
+          : `PDF loaded ✅ (${res.pages} pages, ~${k}k chars)`;
+      } catch(err){
         console.error(err);
         pdfStatus.textContent = "Failed to load PDF ❌";
-        alert("Could not extract text from that PDF.");
+        alert("PDF load failed. (Worker / Safari issue fixed in this version—if it still fails, send the console error.)");
       }
     });
 
@@ -1045,15 +943,14 @@
     refreshSavedDropdown();
     updateResumeHint();
 
-    savedSelect.addEventListener('change', () => {
-      const name = savedSelect.value;
-      if (!name) return;
-      const map = loadSavedTexts();
-      const entry = map[name];
-      if (!entry) return;
-
-      currentDocName = name;
-      currentDocText = normalizeText(entry.text || "");
+    savedSelect.addEventListener('change', ()=>{
+      const name=savedSelect.value;
+      if(!name) return;
+      const map=loadSavedTexts();
+      const entry=map[name];
+      if(!entry) return;
+      currentDocName=name;
+      currentDocText=normalizeText(entry.text||"");
       updateResumeHint();
     });
   </script>
