@@ -8,9 +8,8 @@
   <meta name="theme-color" content="#000000" />
   <title>RSVP Speed Reader</title>
 
-  <!-- ✅ iPhone-friendly PDF approach: PDF.js legacy + workerless -->
+  <!-- ✅ iPhone-friendly PDF approach -->
   <script src="https://unpkg.com/pdfjs-dist@2.16.105/legacy/build/pdf.min.js"></script>
-  <!-- OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
@@ -34,7 +33,6 @@
       font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* Red sliders */
     input[type="range"]{ accent-color: var(--accent); }
 
     .app{
@@ -199,48 +197,42 @@
 
     .wordBox{
       width:100%;
+      min-height:220px;
+      position:relative;
       display:flex;
       align-items:center;
       justify-content:center;
-      min-height:220px;
-      position:relative;
-      overflow:hidden;
     }
 
-    /* ✅ Full word stays intact (perfect kerning) */
-    .wordFull{
-      position:absolute;
-      top:50%;
-      transform: translateY(-50%);
-      left:50%;
-      /* translateX is set dynamically in JS to lock ORP to center */
-      font-weight:950;
-      font-size: calc(clamp(46px, 8vw, 92px) * var(--rsvpScale));
-      line-height:1;
-      white-space:nowrap;
-
-      letter-spacing: 0px;
-      font-kerning: normal;
-      font-variant-ligatures: normal;
-      text-rendering: optimizeLegibility;
-    }
-
-    /* ✅ Red ORP overlay is always fixed at center */
-    .orpOverlay{
+    /* Anchor is fixed center of screen */
+    .wordAnchor{
       position:absolute;
       left:50%;
       top:50%;
       transform: translate(-50%, -50%);
-      font-weight:950;
-      font-size: calc(clamp(46px, 8vw, 92px) * var(--rsvpScale));
-      line-height:1;
-      color: var(--accent);
-      text-shadow: 0 0 12px rgba(255,59,48,0.14);
+      will-change: transform;
       pointer-events:none;
-      white-space:nowrap;
     }
 
-    /* Bottom progress bar (above controls) */
+    /* Inner word shifts horizontally based on measured ORP */
+    .wordInner{
+      display:inline-block;
+      font-weight:950;
+      font-size: calc(clamp(46px, 8vw, 92px) * var(--rsvpScale));
+      letter-spacing: 0px;
+      line-height:1;
+      white-space:nowrap;
+      font-variant-ligatures:none;
+      text-rendering: optimizeLegibility;
+      will-change: transform;
+    }
+
+    .wordInner .center{
+      color:var(--accent);
+      text-shadow: 0 0 12px rgba(255,59,48,0.14);
+    }
+
+    /* Bottom progress bar */
     .progressWrap{
       position:absolute;
       left:0; right:0;
@@ -280,7 +272,7 @@
       border-radius:14px;
       background:transparent;
       border:1px solid rgba(130,130,130,0.45);
-      color:#bdbdbd;
+      color:#c8c8c8;
       font-weight:950;
       font-size:20px;
       display:flex;
@@ -292,13 +284,11 @@
       width:110px;
       font-size:16px;
       letter-spacing:0.2px;
-      color:#bdbdbd;
     }
 
     .ctlBtn:active{
-      transform: scale(0.985);
+      transform: scale(0.98);
       border-color: rgba(200,200,200,0.6);
-      color:#d6d6d6;
     }
 
     .ctlBtn[disabled]{
@@ -380,9 +370,11 @@
     </div>
 
     <div class="overlayInner">
-      <div class="wordBox" id="wordBox">
-        <div class="wordFull" id="wordFull"></div>
-        <div class="orpOverlay" id="orpOverlay"></div>
+      <div class="wordBox">
+        <!-- ✅ Center anchor stays fixed. Word slides left/right to keep ORP locked. -->
+        <div class="wordAnchor">
+          <div class="wordInner" id="wordInner"></div>
+        </div>
       </div>
     </div>
 
@@ -428,9 +420,6 @@
     let sentenceStarts = [];
     let wordToSentence = [];
 
-    // Canvas measurer for exact pixel shifting
-    const measurer = document.createElement("canvas").getContext("2d");
-
     /* ==========================
        DOM
        ========================== */
@@ -460,18 +449,35 @@
     const overlay = document.getElementById('overlay');
     const exitBtn = document.getElementById('exitBtn');
 
-    const wordBox = document.getElementById('wordBox');
-    const wordFull = document.getElementById('wordFull');
-    const orpOverlay = document.getElementById('orpOverlay');
-
     const progressFill = document.getElementById('progressFill');
 
     const backBtn = document.getElementById('backBtn');
     const pauseBtn = document.getElementById('pauseBtn');
     const nextBtn = document.getElementById('nextBtn');
 
+    const wordInner = document.getElementById('wordInner');
+
     /* ==========================
-       TEXT HELPERS
+       CANVAS MEASUREMENT (for perfect ORP centering)
+       ========================== */
+    const measureCanvas = document.createElement("canvas");
+    const measureCtx = measureCanvas.getContext("2d");
+
+    function updateMeasureFont() {
+      const cs = getComputedStyle(wordInner);
+      // cs.font is often empty on iOS; build it manually
+      const fontWeight = cs.fontWeight || "900";
+      const fontSize = cs.fontSize || "64px";
+      const fontFamily = cs.fontFamily || "-apple-system, system-ui, sans-serif";
+      measureCtx.font = `${fontWeight} ${fontSize} ${fontFamily}`;
+    }
+
+    function measureTextPx(text) {
+      return measureCtx.measureText(text || "").width;
+    }
+
+    /* ==========================
+       HELPERS
        ========================== */
     function normalizeText(str) {
       return (str || "")
@@ -530,47 +536,6 @@
       return orp;
     }
 
-    /* ==========================
-       PERFECT ORP RENDERING
-       - full word stays intact (kerning preserved)
-       - ORP letter overlays at exact center
-       - word shifts so ORP letter lands at 50% every time
-       ========================== */
-    function updateWordLayout(word) {
-      const w = word || "";
-      if (!w) {
-        wordFull.textContent = "";
-        orpOverlay.textContent = "";
-        wordFull.style.transform = "translate(-50%, -50%)";
-        return;
-      }
-
-      const orp = getOrpIndex(w);
-      const centerChar = w[orp] || "";
-      orpOverlay.textContent = centerChar;
-      wordFull.textContent = w;
-
-      // Use computed font so canvas measuring matches exactly
-      const cs = getComputedStyle(wordFull);
-      // Example font string: "950 72px -apple-system"
-      measurer.font = cs.font;
-
-      const before = w.slice(0, orp);
-      const charW = measurer.measureText(centerChar || " ").width;
-      const beforeW = measurer.measureText(before).width;
-
-      // Offset to ORP letter center from word start
-      const offsetToOrpCenter = beforeW + (charW * 0.5);
-
-      // Place word start at center - offsetToOrpCenter
-      // wordFull is positioned with left:50%, top:50%
-      // so translateX must move by (-offsetToOrpCenter) to put ORP at center
-      wordFull.style.transform = `translate(${-offsetToOrpCenter}px, -50%)`;
-    }
-
-    /* ==========================
-       TIMING + PROGRESS
-       ========================== */
     function msPerWord(wpm) { return 60000 / wpm; }
     function extraDelay(word) {
       if (/[.!?]$/.test(word)) return 220;
@@ -583,6 +548,49 @@
       const total = Math.max(1, words.length);
       const p = Math.max(0, Math.min(1, idx / total));
       progressFill.style.width = (p * 100).toFixed(2) + "%";
+    }
+
+    /* ==========================
+       ORP-LOCKED RENDERING (NO SPACING ARTIFACTS)
+       - render word normally
+       - measure left width and total width
+       - shift the entire word so ORP sits at X=0 (anchor)
+       ========================== */
+    function showWordOrpLocked(word) {
+      const w = word || "";
+      const orp = getOrpIndex(w);
+
+      const left = w.slice(0, orp);
+      const center = w[orp] ?? "";
+      const right = w.slice(orp + 1);
+
+      // Render as a normal word (no forced gaps)
+      wordInner.innerHTML =
+        `${escapeHtml(left)}<span class="center">${escapeHtml(center)}</span>${escapeHtml(right)}`;
+
+      // Update measure font and compute shift
+      updateMeasureFont();
+
+      const totalW = measureTextPx(w);
+      const leftW  = measureTextPx(left);
+      const centerW = measureTextPx(center || ""); // typically 1 char
+
+      // ORP position from left edge of word: leftW + centerW/2
+      // If word is centered normally, ORP is not fixed.
+      // We shift word so ORP aligns to the anchor x=0:
+      // shiftX = (totalW/2) - (leftW + centerW/2)
+      const shiftX = (totalW * 0.5) - (leftW + centerW * 0.5);
+
+      wordInner.style.transform = `translateX(${shiftX.toFixed(2)}px)`;
+    }
+
+    function escapeHtml(s) {
+      return (s || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
 
     /* ==========================
@@ -657,8 +665,6 @@
     function setRsvpScale(scale) {
       document.documentElement.style.setProperty('--rsvpScale', String(scale));
       sizeLabel.textContent = Math.round(scale * 100) + "%";
-      // Re-render current word with updated font size
-      updateWordLayout(words[Math.max(0, Math.min(words.length - 1, idx - 1))] || "");
     }
     function applyPrefs() {
       const prefs = loadPrefs();
@@ -693,6 +699,12 @@
     sizeSlider.addEventListener('input', () => {
       setRsvpScale(parseFloat(sizeSlider.value));
       savePrefs();
+
+      // re-measure on size changes to keep ORP stable
+      if (overlay.classList.contains("show") && words.length) {
+        const w = words[Math.max(0, Math.min(words.length-1, Math.max(0, idx-1)))];
+        showWordOrpLocked(w);
+      }
     });
 
     /* ==========================
@@ -717,7 +729,7 @@
       if (idx >= words.length) { pause(); return; }
 
       const w = words[idx++];
-      updateWordLayout(w);
+      showWordOrpLocked(w);
 
       updateProgressBar();
       persistProgressIfPossible(false);
@@ -774,11 +786,11 @@
       idx = sentenceStarts[s];
 
       idx = Math.max(0, Math.min(words.length - 1, idx));
-      updateWordLayout(words[idx] || "");
+      showWordOrpLocked(words[idx] || "");
       updateProgressBar();
       persistProgressIfPossible(true);
 
-      // Stay paused after manual jump
+      // stay paused after jump
       pause();
       updateControlState();
     }
@@ -796,7 +808,7 @@
     pauseBtn.addEventListener('click', () => togglePlayPause());
 
     /* ==========================
-       SAVE / LOAD
+       Save/Load
        ========================== */
     saveBtn.addEventListener('click', ()=>{
       const name=(saveName.value||"").trim();
@@ -902,7 +914,7 @@
       lastPersistedIdx=-1;
 
       enterReadingMode();
-      updateWordLayout(words[idx] || "");
+      showWordOrpLocked(words[idx]||"");
       updateProgressBar();
       play();
     });
@@ -911,8 +923,6 @@
 
     /* ==========================
        PDF IMPORT (robust)
-       - PDF.js legacy + disableWorker
-       - OCR fallback per page
        ========================== */
     pdfBtn.addEventListener('click', ()=>{
       pdfInput.value="";
@@ -1011,12 +1021,14 @@
           alert("No readable text found.");
           return;
         }
+
         textInput.value = res.text;
 
         const k = Math.round(res.text.length / 1000);
         pdfStatus.textContent = res.ocrPages > 0
           ? `PDF loaded ✅ (${res.pages} pages, OCR ${res.ocrPages}p, ~${k}k chars)`
           : `PDF loaded ✅ (${res.pages} pages, ~${k}k chars)`;
+
       } catch (err) {
         pdfStatus.textContent = "PDF load failed ❌";
         alert("PDF load failed on this device.");
@@ -1026,26 +1038,37 @@
     /* ==========================
        INIT
        ========================== */
-    applyPrefs();
-    refreshSavedDropdown();
-    updateResumeHint();
-    updateControlState();
-
-    savedSelect.addEventListener('change', ()=>{
-      const name=savedSelect.value;
-      if(!name) return;
-      const map=loadSavedTexts();
-      const entry=map[name];
-      if(!entry) return;
-      currentDocName=name;
-      currentDocText=normalizeText(entry.text||"");
+    function init() {
+      applyPrefs();
+      refreshSavedDropdown();
       updateResumeHint();
-    });
+      updateControlState();
 
-    // If screen resizes (rotation), re-lock ORP center instantly
-    window.addEventListener("resize", () => {
-      updateWordLayout(words[Math.max(0, Math.min(words.length - 1, idx - 1))] || "");
-    });
+      // ensures initial font is measurable
+      updateMeasureFont();
+
+      savedSelect.addEventListener('change', ()=>{
+        const name=savedSelect.value;
+        if(!name) return;
+        const map=loadSavedTexts();
+        const entry=map[name];
+        if(!entry) return;
+        currentDocName=name;
+        currentDocText=normalizeText(entry.text||"");
+        updateResumeHint();
+      });
+
+      // if device rotates, re-render current word with updated font metrics
+      window.addEventListener("resize", () => {
+        updateMeasureFont();
+        if (overlay.classList.contains("show") && words.length) {
+          const w = words[Math.max(0, Math.min(words.length-1, Math.max(0, idx-1)))];
+          showWordOrpLocked(w);
+        }
+      }, { passive:true });
+    }
+
+    init();
   </script>
 </body>
 </html>
