@@ -8,6 +8,9 @@
   <meta name="theme-color" content="#000000" />
   <title>RSVP Speed Reader</title>
 
+  <!-- PDF.js (for loading PDFs) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js"></script>
+
   <style>
     :root{
       --bg:#000;
@@ -19,13 +22,18 @@
       --btn:#1c1c1e;
       --btn2:#2c2c2e;
 
-      --rsvpScale: 1.0;
+      --rsvpScale: 1.0; /* 0.2 - 2.0 => 20% - 200% */
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     html,body{
       margin:0; height:100%; background:var(--bg); color:var(--fg);
       font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Make sliders red on iOS */
+    input[type="range"]{
+      accent-color: var(--accent);
     }
 
     .app{
@@ -44,7 +52,7 @@
     }
 
     .title{
-      font-weight:800;
+      font-weight:900;
       letter-spacing:0.2px;
       font-size:20px;
     }
@@ -62,51 +70,11 @@
       padding:12px;
     }
 
-    /* WPM buttons */
-    .wpmRow{
-      display:flex;
-      gap:10px;
-      overflow-x:auto;
-      padding:6px 2px 8px 2px;
-      scrollbar-width:none;
-    }
-    .wpmRow::-webkit-scrollbar{ display:none; }
-
-    .wpmBtn{
-      flex:0 0 auto;
-      padding:10px 14px;
-      border-radius:14px;
-      background:var(--btn);
-      border:1px solid var(--border);
-      color:var(--fg);
-      font-weight:800;
-      font-size:14px;
-      min-width:78px;
-      transition: transform 0.08s ease, box-shadow 0.12s ease;
-    }
-    .wpmBtn:active{ transform: scale(0.98); }
-    .wpmBtn.active{
-      border-color: transparent;
-      box-shadow:
-        0 0 0 3px rgba(255,59,48,1),
-        0 0 0 6px rgba(255,59,48,0.15);
-    }
-
-    /* Inputs */
-    textarea{
-      width:100%;
-      min-height:160px;
-      resize:none;
-      border-radius:12px;
-      border:1px solid var(--border);
-      background:#050505;
-      color:var(--fg);
-      padding:12px;
-      font-size:15px;
+    .hint{
+      color:var(--muted);
+      font-size:12px;
       line-height:1.35;
-      outline:none;
     }
-    textarea::placeholder{ color:#666; }
 
     .row{
       display:flex;
@@ -120,7 +88,7 @@
       border-radius:14px;
       padding:14px 14px;
       font-size:16px;
-      font-weight:900;
+      font-weight:950;
       background:var(--btn2);
       color:var(--fg);
     }
@@ -129,10 +97,13 @@
       color:#000;
     }
 
-    .hint{
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.35;
+    .miniBtn{
+      padding:10px 12px;
+      border-radius:12px;
+      background:var(--btn);
+      border:1px solid var(--border);
+      font-weight:950;
+      font-size:14px;
     }
 
     input, select{
@@ -147,24 +118,35 @@
       min-width: 160px;
     }
 
-    .miniBtn{
-      padding:10px 12px;
+    textarea{
+      width:100%;
+      min-height:170px;
+      resize:none;
       border-radius:12px;
-      background:var(--btn);
       border:1px solid var(--border);
-      font-weight:900;
-      font-size:14px;
+      background:#050505;
+      color:var(--fg);
+      padding:12px;
+      font-size:15px;
+      line-height:1.35;
+      outline:none;
+    }
+    textarea::placeholder{ color:#666; }
+
+    .actions{
+      display:flex;
+      gap:10px;
     }
 
     .sliderWrap{
       display:flex;
       align-items:center;
       gap:12px;
-      margin-top:14px;
+      margin-top:10px;
     }
-    input[type="range"]{
-      flex:1;
-      min-width:180px;
+    .sliderWrap label{
+      font-weight:900;
+      min-width: 70px;
     }
     .pill{
       padding:6px 10px;
@@ -173,13 +155,16 @@
       border:1px solid var(--border);
       font-size:12px;
       color:var(--muted);
-      font-weight:800;
-      min-width:68px;
+      font-weight:900;
+      min-width:72px;
       text-align:center;
     }
 
-    .actions{
+    .resumeNote{
+      margin-top:10px;
       display:flex;
+      align-items:center;
+      justify-content:space-between;
       gap:10px;
     }
 
@@ -218,7 +203,7 @@
       border-radius:12px;
       background:rgba(28,28,30,0.75);
       border:1px solid rgba(34,34,34,0.9);
-      font-weight:900;
+      font-weight:950;
       font-size:14px;
       color:var(--fg);
       backdrop-filter: blur(10px);
@@ -227,7 +212,7 @@
 
     .overlayInner{
       width:100%;
-      max-width:640px;
+      max-width:680px;
       display:flex;
       flex-direction:column;
       align-items:center;
@@ -240,13 +225,13 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      min-height:160px;
+      min-height:180px;
       padding: 0 6px;
     }
 
     .word{
       font-weight:950;
-      font-size: calc(clamp(44px, 8vw, 86px) * var(--rsvpScale));
+      font-size: calc(clamp(44px, 8vw, 90px) * var(--rsvpScale));
       letter-spacing: 0.5px;
       line-height:1;
       display:flex;
@@ -294,15 +279,6 @@
       border-radius:999px;
       transition: width 90ms linear;
     }
-
-    /* Optional small resume label on home */
-    .resumeNote{
-      margin-top:10px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
   </style>
 </head>
 
@@ -312,27 +288,42 @@
       <div>
         <div class="title">RSVP Speed Reader</div>
         <div class="subtitle">
-          Reading: tap to pause • swipe ←/→ for sentence
+          Reading: tap to pause/resume • swipe sentence only when paused
         </div>
       </div>
     </header>
 
     <div class="card">
-      <div style="font-weight:900; margin-bottom:10px;">Words per minute</div>
-      <div class="wpmRow" id="wpmRow"></div>
-      <div class="hint">Pick a speed (200–900 WPM)</div>
+      <div style="font-weight:950; margin-bottom:10px;">Speed</div>
 
+      <!-- WPM slider (100-step) -->
       <div class="sliderWrap">
-        <div style="font-weight:900;">Text size</div>
-        <input type="range" id="sizeSlider" min="0.8" max="1.4" step="0.05" value="1.0" />
+        <label for="wpmSlider">WPM</label>
+        <input type="range" id="wpmSlider" min="100" max="900" step="100" value="300" />
+        <div class="pill" id="wpmLabel">300</div>
+      </div>
+      <div class="hint">100 WPM steps (100 → 900)</div>
+
+      <!-- Text size slider 20% to 200% -->
+      <div class="sliderWrap" style="margin-top:14px;">
+        <label for="sizeSlider">Size</label>
+        <input type="range" id="sizeSlider" min="0.2" max="2.0" step="0.05" value="1.0" />
         <div class="pill" id="sizeLabel">100%</div>
       </div>
-      <div class="hint">Adjust the RSVP word size</div>
+      <div class="hint">20% → 200% RSVP text size</div>
     </div>
 
     <div class="card">
-      <div style="font-weight:900; margin-bottom:10px;">Paste text</div>
+      <div style="font-weight:950; margin-bottom:10px;">Text</div>
 
+      <!-- PDF load -->
+      <div class="row" style="margin-bottom:10px;">
+        <button class="miniBtn" id="pdfBtn">Load PDF</button>
+        <div class="hint" id="pdfStatus" style="flex:1;">PDF text will be inserted below.</div>
+      </div>
+      <input id="pdfInput" type="file" accept="application/pdf" style="display:none;" />
+
+      <!-- Save/Load -->
       <div class="row" style="margin-bottom:10px;">
         <input id="saveName" placeholder="Name (e.g. Article 1)" />
         <button class="miniBtn" id="saveBtn">Save</button>
@@ -354,7 +345,7 @@
       </div>
 
       <div class="hint" style="margin-top:10px;">
-        Home screen: open in Safari → Share → <b>Add to Home Screen</b>
+        iPhone: Safari → Share → <b>Add to Home Screen</b>
       </div>
     </div>
 
@@ -393,8 +384,8 @@
     // -------------------------
     // LocalStorage keys
     // -------------------------
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v2";
-    const STORE_KEY_PREFS = "rsvp_prefs_v1";
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v3";
+    const STORE_KEY_PREFS = "rsvp_prefs_v2";
 
     // saved map shape:
     // {
@@ -404,11 +395,10 @@
     // -------------------------
     // State
     // -------------------------
-    const wpmPresets = [200,300,400,500,600,700,800,900];
     let selectedWpm = 300;
 
-    let currentDocName = "";        // name of loaded/saved text
-    let currentDocText = "";        // snapshot of the text used to read
+    let currentDocName = "";
+    let currentDocText = "";
     let lastPersistedIdx = -1;
 
     let words = [];
@@ -417,16 +407,21 @@
     let isPlaying = false;
 
     // sentence navigation support
-    let sentenceStarts = []; // array of word-start indices of each sentence
-    let wordToSentence = []; // for each word index -> sentence index
+    let sentenceStarts = [];
+    let wordToSentence = [];
 
     // -------------------------
     // DOM refs
     // -------------------------
-    const wpmRow = document.getElementById('wpmRow');
+    const wpmSlider = document.getElementById('wpmSlider');
+    const wpmLabel  = document.getElementById('wpmLabel');
 
     const sizeSlider = document.getElementById('sizeSlider');
     const sizeLabel = document.getElementById('sizeLabel');
+
+    const pdfBtn = document.getElementById('pdfBtn');
+    const pdfInput = document.getElementById('pdfInput');
+    const pdfStatus = document.getElementById('pdfStatus');
 
     const saveName = document.getElementById('saveName');
     const saveBtn = document.getElementById('saveBtn');
@@ -452,7 +447,7 @@
     const progressFill = document.getElementById('progressFill');
 
     // -------------------------
-    // Helpers: storage
+    // Storage helpers
     // -------------------------
     function loadSavedTexts() {
       try { return JSON.parse(localStorage.getItem(STORE_KEY_TEXTS) || "{}"); }
@@ -480,7 +475,7 @@
     }
 
     // -------------------------
-    // Helpers: prefs
+    // Prefs
     // -------------------------
     function loadPrefs() {
       try { return JSON.parse(localStorage.getItem(STORE_KEY_PREFS) || "{}"); }
@@ -496,9 +491,18 @@
 
     function applyPrefs() {
       const prefs = loadPrefs();
-      if (prefs.wpm && wpmPresets.includes(prefs.wpm)) selectedWpm = prefs.wpm;
+      if (prefs.wpm) {
+        const w = Math.max(100, Math.min(900, Math.round(prefs.wpm / 100) * 100));
+        selectedWpm = w;
+        wpmSlider.value = String(w);
+        wpmLabel.textContent = String(w);
+      } else {
+        selectedWpm = parseInt(wpmSlider.value, 10);
+        wpmLabel.textContent = String(selectedWpm);
+      }
+
       if (prefs.scale) {
-        const s = Math.max(0.8, Math.min(1.4, prefs.scale));
+        const s = Math.max(0.2, Math.min(2.0, prefs.scale));
         sizeSlider.value = s;
         setRsvpScale(s);
       } else {
@@ -507,25 +511,16 @@
     }
 
     // -------------------------
-    // UI: WPM
+    // WPM slider
     // -------------------------
-    function renderWpmButtons() {
-      wpmRow.innerHTML = '';
-      wpmPresets.forEach(wpm => {
-        const btn = document.createElement('button');
-        btn.className = 'wpmBtn' + (wpm === selectedWpm ? ' active' : '');
-        btn.textContent = wpm + ' WPM';
-        btn.onclick = () => {
-          selectedWpm = wpm;
-          renderWpmButtons();
-          savePrefs();
-        };
-        wpmRow.appendChild(btn);
-      });
-    }
+    wpmSlider.addEventListener('input', () => {
+      selectedWpm = parseInt(wpmSlider.value, 10);
+      wpmLabel.textContent = String(selectedWpm);
+      savePrefs();
+    });
 
     // -------------------------
-    // UI: RSVP size
+    // Text size slider (20-200%)
     // -------------------------
     function setRsvpScale(scale) {
       document.documentElement.style.setProperty('--rsvpScale', String(scale));
@@ -552,11 +547,7 @@
       return str.split(' ').filter(Boolean);
     }
 
-    // Sentence splitting: keep punctuation on sentence
     function splitIntoSentences(str) {
-      // A practical sentence splitter:
-      // - splits on ., !, ? followed by space/newline
-      // - keeps punctuation attached
       const parts = str.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
       return (parts || []).map(s => s.trim()).filter(Boolean);
     }
@@ -574,7 +565,6 @@
         if (w.length === 0) return;
 
         starts.push(runningWordIndex);
-
         for (let i = 0; i < w.length; i++) {
           map[runningWordIndex + i] = si;
         }
@@ -583,32 +573,21 @@
         runningWordIndex += w.length;
       });
 
-      // If sentence split failed for some reason, fallback to word array
       if (allWords.length === 0) {
         const fallback = tokenizeWords(text);
         fallback.forEach((_, wi) => map[wi] = 0);
-        return {
-          words: fallback,
-          sentenceStarts: [0],
-          wordToSentence: map
-        };
+        return { words: fallback, sentenceStarts: [0], wordToSentence: map };
       }
 
-      return {
-        words: allWords,
-        sentenceStarts: starts,
-        wordToSentence: map
-      };
+      return { words: allWords, sentenceStarts: starts, wordToSentence: map };
     }
 
-    // ORP / center-letter display
     function getOrpIndex(word) {
       const len = word.length;
       const lettersOnly = word.replace(/[^A-Za-z0-9ÅÆØåæø]/g, '');
       if (!lettersOnly) return Math.min(0, len - 1);
 
       let orp = Math.round(len * 0.35);
-
       if (len <= 1) orp = 0;
       else if (len === 2) orp = 0;
       else orp = Math.max(1, Math.min(len - 2, orp));
@@ -632,9 +611,7 @@
       rightPart.textContent = parts.right;
     }
 
-    function msPerWord(wpm) {
-      return 60000 / wpm;
-    }
+    function msPerWord(wpm) { return 60000 / wpm; }
 
     function extraDelay(word) {
       if (/[.!?]$/.test(word)) return 220;
@@ -653,20 +630,17 @@
     }
 
     // -------------------------
-    // Save progress for current doc
+    // Persist progress
     // -------------------------
     function persistProgressIfPossible(force=false) {
       if (!currentDocName) return;
       if (!words.length) return;
-
-      // avoid hammering localStorage
       if (!force && idx === lastPersistedIdx) return;
 
       const map = loadSavedTexts();
       const entry = map[currentDocName];
       if (!entry) return;
 
-      // Only persist if text matches the saved one
       if ((entry.text || "") !== currentDocText) return;
 
       entry.progressWordIndex = Math.max(0, Math.min(words.length - 1, idx));
@@ -692,7 +666,7 @@
     }
 
     // -------------------------
-    // Playback controls
+    // Playback
     // -------------------------
     function step() {
       if (!isPlaying) return;
@@ -743,7 +717,7 @@
     }
 
     // -------------------------
-    // Sentence navigation via swipe
+    // Sentence navigation (ONLY when paused)
     // -------------------------
     function getCurrentSentenceIndex() {
       const at = Math.max(0, Math.min(words.length - 1, Math.max(0, idx - 1)));
@@ -771,41 +745,49 @@
       jumpToSentence(s - 1);
     }
 
-    // Swipe detection
-    let touchStartX = 0, touchStartY = 0;
+    // -------------------------
+    // Robust tap vs swipe:
+    // - Swipe ONLY works when paused
+    // - Taps always toggle pause/resume
+    // -------------------------
+    let touchStartX = 0, touchStartY = 0, touchStartT = 0;
+
     tapCatcher.addEventListener('touchstart', (e) => {
       const t = e.changedTouches[0];
       touchStartX = t.clientX;
       touchStartY = t.clientY;
+      touchStartT = performance.now();
     }, { passive: true });
 
     tapCatcher.addEventListener('touchend', (e) => {
       const t = e.changedTouches[0];
       const dx = t.clientX - touchStartX;
       const dy = t.clientY - touchStartY;
+      const dt = performance.now() - touchStartT;
 
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
 
-      // If it's a swipe, do sentence jump.
-      if (absX > 45 && absY < 30) {
-        // swipe left -> next sentence
+      const isSwipe = (absX > 55 && absY < 35 && dt < 550);
+
+      // SWIPE ONLY WHEN PAUSED
+      if (!isPlaying && isSwipe) {
         if (dx < 0) nextSentence();
         else prevSentence();
         return;
       }
 
-      // Otherwise treat as a tap -> pause/resume
+      // Otherwise always treat as TAP toggle (stable)
       togglePlayPause();
     }, { passive: true });
 
-    // Desktop click -> pause/resume
+    // Desktop click toggles
     tapCatcher.addEventListener('click', () => {
       togglePlayPause();
     });
 
     // -------------------------
-    // Home actions: save/load/delete/restart
+    // Save/Load/Delete/Restart
     // -------------------------
     saveBtn.addEventListener('click', () => {
       const name = (saveName.value || "").trim();
@@ -815,31 +797,19 @@
       if (!text) { alert("Nothing to save — paste some text first."); return; }
 
       const map = loadSavedTexts();
-
-      // If new, start progress at 0
-      // If overwriting existing, keep progress ONLY if text is unchanged
       const prev = map[name];
+
       let progressWordIndex = 0;
+      if (prev && (prev.text || "") === text) progressWordIndex = prev.progressWordIndex || 0;
 
-      if (prev && (prev.text || "") === text) {
-        progressWordIndex = prev.progressWordIndex || 0;
-      } else {
-        progressWordIndex = 0;
-      }
-
-      map[name] = {
-        text,
-        progressWordIndex,
-        updatedAt: Date.now()
-      };
-
+      map[name] = { text, progressWordIndex, updatedAt: Date.now() };
       saveSavedTexts(map);
 
       currentDocName = name;
       currentDocText = text;
-      savedSelect.value = name;
 
       refreshSavedDropdown();
+      savedSelect.value = name;
       updateResumeHint();
 
       alert("Saved ✅");
@@ -881,7 +851,6 @@
 
     restartBtn.addEventListener('click', () => {
       if (!currentDocName) {
-        // If not loaded from saved, just reset nothing special
         alert("Load a saved text to restart its progress.");
         return;
       }
@@ -899,7 +868,7 @@
     });
 
     clearBtn.addEventListener('click', () => {
-      textInput.value = '';
+      textInput.value = "";
       currentDocName = "";
       currentDocText = "";
       updateResumeHint();
@@ -907,13 +876,12 @@
     });
 
     // -------------------------
-    // Start reading (auto resume if saved)
+    // Start Reading (auto resume)
     // -------------------------
     startBtn.addEventListener('click', () => {
       const raw = normalizeText(textInput.value || "");
       if (!raw) { alert("Paste some text first."); return; }
 
-      // Build sentence-aware tokenization
       const built = buildSentenceIndexing(raw);
       words = built.words;
       sentenceStarts = built.sentenceStarts;
@@ -921,7 +889,6 @@
 
       idx = 0;
 
-      // If current text matches a saved doc, resume
       if (currentDocName) {
         const map = loadSavedTexts();
         const entry = map[currentDocName];
@@ -929,7 +896,6 @@
           currentDocText = raw;
           idx = Math.max(0, Math.min(words.length - 1, entry.progressWordIndex || 0));
         } else {
-          // text changed -> no resume
           currentDocText = raw;
           idx = 0;
         }
@@ -950,14 +916,61 @@
     });
 
     // -------------------------
+    // PDF loading
+    // -------------------------
+    pdfBtn.addEventListener('click', () => {
+      pdfInput.value = "";
+      pdfInput.click();
+    });
+
+    async function extractPdfText(file) {
+      // PDF.js expects a Uint8Array
+      const buf = await file.arrayBuffer();
+      const uint8 = new Uint8Array(buf);
+
+      // Standard worker setup (PDF.js 4+)
+      // If it warns, it still usually works fine via cdnjs.
+      const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+      const pdf = await loadingTask.promise;
+
+      let full = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const strings = content.items.map(it => it.str).filter(Boolean);
+        full.push(strings.join(" "));
+      }
+      return normalizeText(full.join("\n\n"));
+    }
+
+    pdfInput.addEventListener('change', async () => {
+      const file = pdfInput.files && pdfInput.files[0];
+      if (!file) return;
+
+      pdfStatus.textContent = "Loading PDF…";
+      try {
+        const text = await extractPdfText(file);
+        if (!text) {
+          pdfStatus.textContent = "PDF loaded, but no text found (maybe scanned image).";
+          return;
+        }
+        textInput.value = text;
+        pdfStatus.textContent = `PDF loaded ✅ (${Math.round(text.length/1000)}k chars)`;
+      } catch (err) {
+        console.error(err);
+        pdfStatus.textContent = "Failed to load PDF ❌";
+        alert("Could not extract text from that PDF.");
+      }
+    });
+
+    // -------------------------
     // Init
     // -------------------------
     applyPrefs();
-    renderWpmButtons();
     refreshSavedDropdown();
     updateResumeHint();
 
-    // Also update hint if user changes selection manually
+    // Keep currentDocName updated when selecting
     savedSelect.addEventListener('change', () => {
       const name = savedSelect.value;
       if (!name) return;
@@ -967,7 +980,6 @@
 
       currentDocName = name;
       currentDocText = normalizeText(entry.text || "");
-      // don't auto-load into textarea on just selection (keeps UX clean)
       updateResumeHint();
     });
   </script>
