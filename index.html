@@ -25,9 +25,7 @@
       --btn:#1c1c1e;
       --btn2:#2c2c2e;
 
-      --rsvpScale: 1.0;          /* 0.2..2.0 => 20..200% */
-      --orpLeftWidth: 12ch;      /* key for stable ORP alignment */
-      --orpRightWidth: 12ch;     /* key for stable ORP alignment */
+      --rsvpScale: 1.0; /* 0.2..2.0 => 20..200% */
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -204,42 +202,42 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      min-height:200px;
-      padding: 0 6px;
+      min-height:220px;
+      position:relative;
+      overflow:hidden;
     }
 
-    /* ✅ Stable center alignment using fixed grid columns */
-    .word{
-      display:grid;
-      grid-template-columns: var(--orpLeftWidth) 1ch var(--orpRightWidth);
-      align-items:baseline;
-      justify-content:center;
+    /* ✅ Full word stays intact (perfect kerning) */
+    .wordFull{
+      position:absolute;
+      top:50%;
+      transform: translateY(-50%);
+      left:50%;
+      /* translateX is set dynamically in JS to lock ORP to center */
       font-weight:950;
       font-size: calc(clamp(46px, 8vw, 92px) * var(--rsvpScale));
-      letter-spacing: 0.2px;
       line-height:1;
-      font-variant-ligatures:none;
+      white-space:nowrap;
+
+      letter-spacing: 0px;
+      font-kerning: normal;
+      font-variant-ligatures: normal;
       text-rendering: optimizeLegibility;
     }
 
-    .left{
-      text-align:right;
-      opacity:0.96;
-      overflow:hidden;
-      white-space:nowrap;
-      text-overflow:clip;
-    }
-    .center{
-      text-align:center;
-      color:var(--accent);
+    /* ✅ Red ORP overlay is always fixed at center */
+    .orpOverlay{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform: translate(-50%, -50%);
+      font-weight:950;
+      font-size: calc(clamp(46px, 8vw, 92px) * var(--rsvpScale));
+      line-height:1;
+      color: var(--accent);
       text-shadow: 0 0 12px rgba(255,59,48,0.14);
-    }
-    .right{
-      text-align:left;
-      opacity:0.96;
-      overflow:hidden;
+      pointer-events:none;
       white-space:nowrap;
-      text-overflow:clip;
     }
 
     /* Bottom progress bar (above controls) */
@@ -282,7 +280,7 @@
       border-radius:14px;
       background:transparent;
       border:1px solid rgba(130,130,130,0.45);
-      color:#c8c8c8;
+      color:#bdbdbd;
       font-weight:950;
       font-size:20px;
       display:flex;
@@ -294,11 +292,13 @@
       width:110px;
       font-size:16px;
       letter-spacing:0.2px;
+      color:#bdbdbd;
     }
 
     .ctlBtn:active{
-      transform: scale(0.98);
+      transform: scale(0.985);
       border-color: rgba(200,200,200,0.6);
+      color:#d6d6d6;
     }
 
     .ctlBtn[disabled]{
@@ -313,7 +313,7 @@
     <header>
       <div>
         <div class="title">RSVP Speed Reader</div>
-        <div class="subtitle">Use controls while reading (− Pause +)</div>
+        <div class="subtitle">Reading uses bottom controls (− Pause +)</div>
       </div>
     </header>
 
@@ -380,12 +380,9 @@
     </div>
 
     <div class="overlayInner">
-      <div class="wordBox">
-        <div class="word" aria-live="polite" aria-atomic="true">
-          <span class="left" id="leftPart"></span>
-          <span class="center" id="centerPart"></span>
-          <span class="right" id="rightPart"></span>
-        </div>
+      <div class="wordBox" id="wordBox">
+        <div class="wordFull" id="wordFull"></div>
+        <div class="orpOverlay" id="orpOverlay"></div>
       </div>
     </div>
 
@@ -395,7 +392,6 @@
       </div>
     </div>
 
-    <!-- ✅ Bottom controls -->
     <div class="controls">
       <button class="ctlBtn" id="backBtn" title="Back sentence">−</button>
       <button class="ctlBtn big" id="pauseBtn" title="Pause/Play">Pause</button>
@@ -412,8 +408,8 @@
     /* ==========================
        STORAGE KEYS
        ========================== */
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v7";
-    const STORE_KEY_PREFS = "rsvp_prefs_v6";
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v8";
+    const STORE_KEY_PREFS = "rsvp_prefs_v7";
 
     /* ==========================
        STATE
@@ -431,6 +427,9 @@
 
     let sentenceStarts = [];
     let wordToSentence = [];
+
+    // Canvas measurer for exact pixel shifting
+    const measurer = document.createElement("canvas").getContext("2d");
 
     /* ==========================
        DOM
@@ -461,9 +460,9 @@
     const overlay = document.getElementById('overlay');
     const exitBtn = document.getElementById('exitBtn');
 
-    const leftPart = document.getElementById('leftPart');
-    const centerPart = document.getElementById('centerPart');
-    const rightPart = document.getElementById('rightPart');
+    const wordBox = document.getElementById('wordBox');
+    const wordFull = document.getElementById('wordFull');
+    const orpOverlay = document.getElementById('orpOverlay');
 
     const progressFill = document.getElementById('progressFill');
 
@@ -472,7 +471,7 @@
     const nextBtn = document.getElementById('nextBtn');
 
     /* ==========================
-       HELPERS
+       TEXT HELPERS
        ========================== */
     function normalizeText(str) {
       return (str || "")
@@ -531,22 +530,47 @@
       return orp;
     }
 
-    function splitForDisplay(word) {
-      const orp = getOrpIndex(word || "");
-      return {
-        left: (word || "").slice(0, orp),
-        center: (word || "")[orp] ?? '',
-        right: (word || "").slice(orp + 1),
-      };
+    /* ==========================
+       PERFECT ORP RENDERING
+       - full word stays intact (kerning preserved)
+       - ORP letter overlays at exact center
+       - word shifts so ORP letter lands at 50% every time
+       ========================== */
+    function updateWordLayout(word) {
+      const w = word || "";
+      if (!w) {
+        wordFull.textContent = "";
+        orpOverlay.textContent = "";
+        wordFull.style.transform = "translate(-50%, -50%)";
+        return;
+      }
+
+      const orp = getOrpIndex(w);
+      const centerChar = w[orp] || "";
+      orpOverlay.textContent = centerChar;
+      wordFull.textContent = w;
+
+      // Use computed font so canvas measuring matches exactly
+      const cs = getComputedStyle(wordFull);
+      // Example font string: "950 72px -apple-system"
+      measurer.font = cs.font;
+
+      const before = w.slice(0, orp);
+      const charW = measurer.measureText(centerChar || " ").width;
+      const beforeW = measurer.measureText(before).width;
+
+      // Offset to ORP letter center from word start
+      const offsetToOrpCenter = beforeW + (charW * 0.5);
+
+      // Place word start at center - offsetToOrpCenter
+      // wordFull is positioned with left:50%, top:50%
+      // so translateX must move by (-offsetToOrpCenter) to put ORP at center
+      wordFull.style.transform = `translate(${-offsetToOrpCenter}px, -50%)`;
     }
 
-    function showWord(word) {
-      const p = splitForDisplay(word || "");
-      leftPart.textContent = p.left;
-      centerPart.textContent = p.center;
-      rightPart.textContent = p.right;
-    }
-
+    /* ==========================
+       TIMING + PROGRESS
+       ========================== */
     function msPerWord(wpm) { return 60000 / wpm; }
     function extraDelay(word) {
       if (/[.!?]$/.test(word)) return 220;
@@ -633,6 +657,8 @@
     function setRsvpScale(scale) {
       document.documentElement.style.setProperty('--rsvpScale', String(scale));
       sizeLabel.textContent = Math.round(scale * 100) + "%";
+      // Re-render current word with updated font size
+      updateWordLayout(words[Math.max(0, Math.min(words.length - 1, idx - 1))] || "");
     }
     function applyPrefs() {
       const prefs = loadPrefs();
@@ -675,7 +701,6 @@
     function updateControlState() {
       pauseBtn.textContent = isPlaying ? "Pause" : "Play";
 
-      // Sentence boundaries only known when words exist
       if (!words.length) {
         backBtn.disabled = true;
         nextBtn.disabled = true;
@@ -692,7 +717,7 @@
       if (idx >= words.length) { pause(); return; }
 
       const w = words[idx++];
-      showWord(w);
+      updateWordLayout(w);
 
       updateProgressBar();
       persistProgressIfPossible(false);
@@ -749,31 +774,29 @@
       idx = sentenceStarts[s];
 
       idx = Math.max(0, Math.min(words.length - 1, idx));
-      showWord(words[idx] || "");
+      updateWordLayout(words[idx] || "");
       updateProgressBar();
       persistProgressIfPossible(true);
 
-      // Stay paused after manual jump (more predictable)
+      // Stay paused after manual jump
       pause();
       updateControlState();
     }
 
     backBtn.addEventListener('click', () => {
       if (!words.length) return;
-      const s = getCurrentSentenceIndex();
-      jumpToSentence(s - 1);
+      jumpToSentence(getCurrentSentenceIndex() - 1);
     });
 
     nextBtn.addEventListener('click', () => {
       if (!words.length) return;
-      const s = getCurrentSentenceIndex();
-      jumpToSentence(s + 1);
+      jumpToSentence(getCurrentSentenceIndex() + 1);
     });
 
     pauseBtn.addEventListener('click', () => togglePlayPause());
 
     /* ==========================
-       SAVE/LOAD
+       SAVE / LOAD
        ========================== */
     saveBtn.addEventListener('click', ()=>{
       const name=(saveName.value||"").trim();
@@ -879,10 +902,8 @@
       lastPersistedIdx=-1;
 
       enterReadingMode();
-      showWord(words[idx]||"");
+      updateWordLayout(words[idx] || "");
       updateProgressBar();
-
-      // Start in play mode immediately
       play();
     });
 
@@ -1019,6 +1040,11 @@
       currentDocName=name;
       currentDocText=normalizeText(entry.text||"");
       updateResumeHint();
+    });
+
+    // If screen resizes (rotation), re-lock ORP center instantly
+    window.addEventListener("resize", () => {
+      updateWordLayout(words[Math.max(0, Math.min(words.length - 1, idx - 1))] || "");
     });
   </script>
 </body>
