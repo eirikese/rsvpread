@@ -8,8 +8,10 @@
   <meta name="theme-color" content="#000000" />
   <title>RSVP Speed Reader</title>
 
-  <!-- PDF.js (for loading PDFs) -->
+  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js"></script>
+  <!-- Tesseract OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
     :root{
@@ -31,10 +33,8 @@
       font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* Make sliders red on iOS */
-    input[type="range"]{
-      accent-color: var(--accent);
-    }
+    /* Red sliders on iOS */
+    input[type="range"]{ accent-color: var(--accent); }
 
     .app{
       min-height:100%;
@@ -52,7 +52,7 @@
     }
 
     .title{
-      font-weight:900;
+      font-weight:950;
       letter-spacing:0.2px;
       font-size:20px;
     }
@@ -145,7 +145,7 @@
       margin-top:10px;
     }
     .sliderWrap label{
-      font-weight:900;
+      font-weight:950;
       min-width: 70px;
     }
     .pill{
@@ -155,7 +155,7 @@
       border:1px solid var(--border);
       font-size:12px;
       color:var(--muted);
-      font-weight:900;
+      font-weight:950;
       min-width:72px;
       text-align:center;
     }
@@ -288,7 +288,7 @@
       <div>
         <div class="title">RSVP Speed Reader</div>
         <div class="subtitle">
-          Reading: tap to pause/resume • swipe sentence only when paused
+          Tap to pause • Swipe sentence when paused
         </div>
       </div>
     </header>
@@ -296,34 +296,28 @@
     <div class="card">
       <div style="font-weight:950; margin-bottom:10px;">Speed</div>
 
-      <!-- WPM slider (100-step) -->
       <div class="sliderWrap">
         <label for="wpmSlider">WPM</label>
         <input type="range" id="wpmSlider" min="100" max="900" step="100" value="300" />
         <div class="pill" id="wpmLabel">300</div>
       </div>
-      <div class="hint">100 WPM steps (100 → 900)</div>
 
-      <!-- Text size slider 20% to 200% -->
       <div class="sliderWrap" style="margin-top:14px;">
         <label for="sizeSlider">Size</label>
         <input type="range" id="sizeSlider" min="0.2" max="2.0" step="0.05" value="1.0" />
         <div class="pill" id="sizeLabel">100%</div>
       </div>
-      <div class="hint">20% → 200% RSVP text size</div>
     </div>
 
     <div class="card">
       <div style="font-weight:950; margin-bottom:10px;">Text</div>
 
-      <!-- PDF load -->
       <div class="row" style="margin-bottom:10px;">
         <button class="miniBtn" id="pdfBtn">Load PDF</button>
         <div class="hint" id="pdfStatus" style="flex:1;">PDF text will be inserted below.</div>
       </div>
       <input id="pdfInput" type="file" accept="application/pdf" style="display:none;" />
 
-      <!-- Save/Load -->
       <div class="row" style="margin-bottom:10px;">
         <input id="saveName" placeholder="Name (e.g. Article 1)" />
         <button class="miniBtn" id="saveBtn">Save</button>
@@ -384,8 +378,8 @@
     // -------------------------
     // LocalStorage keys
     // -------------------------
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v3";
-    const STORE_KEY_PREFS = "rsvp_prefs_v2";
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v4";
+    const STORE_KEY_PREFS = "rsvp_prefs_v3";
 
     // saved map shape:
     // {
@@ -491,6 +485,7 @@
 
     function applyPrefs() {
       const prefs = loadPrefs();
+
       if (prefs.wpm) {
         const w = Math.max(100, Math.min(900, Math.round(prefs.wpm / 100) * 100));
         selectedWpm = w;
@@ -511,7 +506,7 @@
     }
 
     // -------------------------
-    // WPM slider
+    // Sliders
     // -------------------------
     wpmSlider.addEventListener('input', () => {
       selectedWpm = parseInt(wpmSlider.value, 10);
@@ -519,9 +514,6 @@
       savePrefs();
     });
 
-    // -------------------------
-    // Text size slider (20-200%)
-    // -------------------------
     function setRsvpScale(scale) {
       document.documentElement.style.setProperty('--rsvpScale', String(scale));
       sizeLabel.textContent = Math.round(scale * 100) + "%";
@@ -536,7 +528,7 @@
     // Text utilities
     // -------------------------
     function normalizeText(str) {
-      return str
+      return (str || "")
         .replace(/\s+/g, ' ')
         .replace(/[“”]/g, '"')
         .replace(/[‘’]/g, "'")
@@ -548,6 +540,7 @@
     }
 
     function splitIntoSentences(str) {
+      // Practical sentence splitter
       const parts = str.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
       return (parts || []).map(s => s.trim()).filter(Boolean);
     }
@@ -591,7 +584,6 @@
       if (len <= 1) orp = 0;
       else if (len === 2) orp = 0;
       else orp = Math.max(1, Math.min(len - 2, orp));
-
       return orp;
     }
 
@@ -605,7 +597,7 @@
     }
 
     function showWord(word) {
-      const parts = splitForDisplay(word);
+      const parts = splitForDisplay(word || "");
       leftPart.textContent = parts.left;
       centerPart.textContent = parts.center;
       rightPart.textContent = parts.right;
@@ -728,7 +720,6 @@
       if (!sentenceStarts.length) return;
       const s = Math.max(0, Math.min(sentenceStarts.length - 1, sentenceIndex));
       idx = sentenceStarts[s];
-
       idx = Math.max(0, Math.min(words.length - 1, idx));
       showWord(words[idx] || "");
       updateProgressBar();
@@ -747,8 +738,8 @@
 
     // -------------------------
     // Robust tap vs swipe:
+    // - Tap ALWAYS toggles pause/resume
     // - Swipe ONLY works when paused
-    // - Taps always toggle pause/resume
     // -------------------------
     let touchStartX = 0, touchStartY = 0, touchStartT = 0;
 
@@ -768,23 +759,19 @@
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
 
-      const isSwipe = (absX > 55 && absY < 35 && dt < 550);
+      const isSwipe = (absX > 60 && absY < 35 && dt < 650);
 
-      // SWIPE ONLY WHEN PAUSED
       if (!isPlaying && isSwipe) {
         if (dx < 0) nextSentence();
         else prevSentence();
         return;
       }
 
-      // Otherwise always treat as TAP toggle (stable)
       togglePlayPause();
     }, { passive: true });
 
     // Desktop click toggles
-    tapCatcher.addEventListener('click', () => {
-      togglePlayPause();
-    });
+    tapCatcher.addEventListener('click', () => togglePlayPause());
 
     // -------------------------
     // Save/Load/Delete/Restart
@@ -916,31 +903,109 @@
     });
 
     // -------------------------
-    // PDF loading
+    // Robust PDF loading (AUTO under the hood)
+    // - Fast extract text from each page
+    // - If page has low text, OCR that page
+    // - Works for mixed PDFs (text + image pages)
     // -------------------------
     pdfBtn.addEventListener('click', () => {
       pdfInput.value = "";
       pdfInput.click();
     });
 
-    async function extractPdfText(file) {
-      // PDF.js expects a Uint8Array
+    async function renderPageToCanvas(page, scale=2.0) {
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      return canvas;
+    }
+
+    function cleanOcrText(t) {
+      return normalizeText(
+        (t || "")
+          .replace(/-\s+/g, "")          // fix hyphen line breaks
+          .replace(/\s+\n/g, "\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/[ \t]{2,}/g, " ")
+      );
+    }
+
+    async function extractPdfSmartAuto(file) {
       const buf = await file.arrayBuffer();
       const uint8 = new Uint8Array(buf);
 
-      // Standard worker setup (PDF.js 4+)
-      // If it warns, it still usually works fine via cdnjs.
+      pdfStatus.textContent = "Opening PDF…";
+
       const loadingTask = pdfjsLib.getDocument({ data: uint8 });
       const pdf = await loadingTask.promise;
 
-      let full = [];
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const content = await page.getTextContent();
-        const strings = content.items.map(it => it.str).filter(Boolean);
-        full.push(strings.join(" "));
+      const pageCount = pdf.numPages;
+
+      // OCR worker created once (much faster than creating per page)
+      const worker = await Tesseract.createWorker("eng");
+
+      // Heuristics:
+      // - OCR only when extracted text is "too small"
+      // - Limit OCR to avoid freezing big PDFs on iPhone
+      const OCR_TEXT_THRESHOLD = 60;   // chars per page considered "real text"
+      const MAX_OCR_PAGES = 35;        // safety cap (auto)
+      let ocrUsed = 0;
+
+      const out = [];
+
+      try {
+        for (let p = 1; p <= pageCount; p++) {
+          pdfStatus.textContent = `Reading PDF… Page ${p}/${pageCount}`;
+
+          const page = await pdf.getPage(p);
+
+          // Fast extraction
+          let fastText = "";
+          try {
+            const content = await page.getTextContent();
+            const strings = content.items
+              .map(it => (it.str || "").trim())
+              .filter(Boolean);
+            fastText = strings.join(" ");
+          } catch {
+            fastText = "";
+          }
+
+          // Decide if OCR needed
+          const shouldOcr = normalizeText(fastText).length < OCR_TEXT_THRESHOLD;
+
+          if (!shouldOcr) {
+            out.push(normalizeText(fastText));
+            continue;
+          }
+
+          // OCR fallback (auto)
+          if (ocrUsed >= MAX_OCR_PAGES) {
+            // If we hit cap, still add whatever fast text exists (even if small)
+            out.push(normalizeText(fastText));
+            continue;
+          }
+
+          ocrUsed++;
+          pdfStatus.textContent = `OCR… Page ${p}/${pageCount}`;
+
+          // Render page to canvas and OCR it
+          const canvas = await renderPageToCanvas(page, 2.2);
+          const { data } = await worker.recognize(canvas);
+
+          const ocrText = cleanOcrText(data?.text || "");
+          // If OCR got nothing, fallback to fast
+          out.push(ocrText || normalizeText(fastText));
+        }
+      } finally {
+        await worker.terminate();
       }
-      return normalizeText(full.join("\n\n"));
+
+      const finalText = normalizeText(out.filter(Boolean).join("\n\n"));
+      return { text: finalText, pages: pageCount, ocrPages: ocrUsed };
     }
 
     pdfInput.addEventListener('change', async () => {
@@ -948,14 +1013,24 @@
       if (!file) return;
 
       pdfStatus.textContent = "Loading PDF…";
+
       try {
-        const text = await extractPdfText(file);
-        if (!text) {
-          pdfStatus.textContent = "PDF loaded, but no text found (maybe scanned image).";
+        const result = await extractPdfSmartAuto(file);
+
+        if (!result.text) {
+          pdfStatus.textContent = "PDF loaded, but no readable text found.";
+          alert("No readable text found in this PDF.");
           return;
         }
-        textInput.value = text;
-        pdfStatus.textContent = `PDF loaded ✅ (${Math.round(text.length/1000)}k chars)`;
+
+        textInput.value = result.text;
+
+        const k = Math.round(result.text.length/1000);
+        if (result.ocrPages > 0) {
+          pdfStatus.textContent = `PDF loaded ✅ (${result.pages} pages, OCR ${result.ocrPages}p, ~${k}k chars)`;
+        } else {
+          pdfStatus.textContent = `PDF loaded ✅ (${result.pages} pages, ~${k}k chars)`;
+        }
       } catch (err) {
         console.error(err);
         pdfStatus.textContent = "Failed to load PDF ❌";
@@ -970,7 +1045,6 @@
     refreshSavedDropdown();
     updateResumeHint();
 
-    // Keep currentDocName updated when selecting
     savedSelect.addEventListener('change', () => {
       const name = savedSelect.value;
       if (!name) return;
