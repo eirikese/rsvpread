@@ -12,12 +12,14 @@
     :root{
       --bg:#000;
       --fg:#fff;
-      --accent:#ff3b30; /* iOS red-ish */
+      --accent:#ff3b30;
       --muted:#a0a0a0;
       --card:#111;
       --border:#222;
       --btn:#1c1c1e;
       --btn2:#2c2c2e;
+
+      --rsvpScale: 1.0;
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -26,7 +28,6 @@
       font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* App shell */
     .app{
       min-height:100%;
       padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom) 16px;
@@ -43,7 +44,7 @@
     }
 
     .title{
-      font-weight:700;
+      font-weight:800;
       letter-spacing:0.2px;
       font-size:20px;
     }
@@ -64,33 +65,37 @@
     /* WPM buttons */
     .wpmRow{
       display:flex;
-      gap:8px;
+      gap:10px;
       overflow-x:auto;
-      padding-bottom:6px;
+      padding:6px 2px 8px 2px;
       scrollbar-width:none;
     }
     .wpmRow::-webkit-scrollbar{ display:none; }
 
     .wpmBtn{
       flex:0 0 auto;
-      padding:10px 12px;
-      border-radius:12px;
+      padding:10px 14px;
+      border-radius:14px;
       background:var(--btn);
       border:1px solid var(--border);
       color:var(--fg);
-      font-weight:600;
+      font-weight:800;
       font-size:14px;
-      min-width:72px;
+      min-width:78px;
+      transition: transform 0.08s ease, box-shadow 0.12s ease;
     }
+    .wpmBtn:active{ transform: scale(0.98); }
     .wpmBtn.active{
-      outline:2px solid var(--accent);
       border-color: transparent;
+      box-shadow:
+        0 0 0 3px rgba(255,59,48,1),
+        0 0 0 6px rgba(255,59,48,0.15);
     }
 
-    /* Text area */
+    /* Inputs */
     textarea{
       width:100%;
-      min-height:180px;
+      min-height:160px;
       resize:none;
       border-radius:12px;
       border:1px solid var(--border);
@@ -103,9 +108,11 @@
     }
     textarea::placeholder{ color:#666; }
 
-    .actions{
+    .row{
       display:flex;
       gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
     }
 
     button{
@@ -113,7 +120,7 @@
       border-radius:14px;
       padding:14px 14px;
       font-size:16px;
-      font-weight:700;
+      font-weight:900;
       background:var(--btn2);
       color:var(--fg);
     }
@@ -128,7 +135,55 @@
       line-height:1.35;
     }
 
-    /* Reading overlay */
+    input, select{
+      background:#050505;
+      color:var(--fg);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:14px;
+      outline:none;
+      flex:1;
+      min-width: 160px;
+    }
+
+    .miniBtn{
+      padding:10px 12px;
+      border-radius:12px;
+      background:var(--btn);
+      border:1px solid var(--border);
+      font-weight:900;
+      font-size:14px;
+    }
+
+    .sliderWrap{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-top:14px;
+    }
+    input[type="range"]{
+      flex:1;
+      min-width:180px;
+    }
+    .pill{
+      padding:6px 10px;
+      border-radius:999px;
+      background:#0b0b0b;
+      border:1px solid var(--border);
+      font-size:12px;
+      color:var(--muted);
+      font-weight:800;
+      min-width:68px;
+      text-align:center;
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+    }
+
+    /* Reading overlay (clean) */
     .overlay{
       position:fixed;
       inset:0;
@@ -141,15 +196,10 @@
     }
     .overlay.show{ display:flex; }
 
-    .overlayInner{
-      width:100%;
-      max-width:640px;
-      display:flex;
-      flex-direction:column;
-      gap:18px;
-      align-items:center;
-      justify-content:center;
-      user-select:none;
+    .tapCatcher{
+      position:absolute;
+      inset:0;
+      background:transparent;
     }
 
     .topBar{
@@ -158,8 +208,7 @@
       left:0; right:0;
       padding: 10px 16px 8px 16px;
       display:flex;
-      justify-content:space-between;
-      align-items:center;
+      justify-content:flex-end;
       pointer-events:none;
     }
     .topBar > *{ pointer-events:auto; }
@@ -167,76 +216,92 @@
     .smallBtn{
       padding:10px 12px;
       border-radius:12px;
-      background:var(--btn);
-      border:1px solid var(--border);
-      font-weight:700;
+      background:rgba(28,28,30,0.75);
+      border:1px solid rgba(34,34,34,0.9);
+      font-weight:900;
       font-size:14px;
+      color:var(--fg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
 
-    .status{
-      color:var(--muted);
-      font-size:12px;
-      font-weight:600;
+    .overlayInner{
+      width:100%;
+      max-width:640px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      user-select:none;
     }
 
-    /* RSVP word display */
     .wordBox{
       width:100%;
       display:flex;
       align-items:center;
       justify-content:center;
-      min-height:140px;
+      min-height:160px;
+      padding: 0 6px;
     }
 
     .word{
-      font-weight:800;
-      font-size: clamp(44px, 8vw, 86px);
+      font-weight:950;
+      font-size: calc(clamp(44px, 8vw, 86px) * var(--rsvpScale));
       letter-spacing: 0.5px;
       line-height:1;
       display:flex;
       align-items:baseline;
       justify-content:center;
       font-variant-ligatures:none;
+      text-align:center;
     }
 
-    /* Keep ORP centered using fixed left/right space */
     .left, .right{
       display:inline-block;
       min-width: 2ch;
       text-align:right;
       color:var(--fg);
-      opacity:0.95;
+      opacity:0.96;
     }
     .right{
-      min-width: 2ch;
       text-align:left;
     }
 
     .center{
       color:var(--accent);
       padding:0 2px;
-      text-shadow: 0 0 10px rgba(255,59,48,0.15);
+      text-shadow: 0 0 10px rgba(255,59,48,0.12);
     }
 
-    .pauseBadge{
-      margin-top:6px;
-      color:var(--muted);
-      font-size:14px;
-      font-weight:600;
-      opacity:0;
-      transform: translateY(-6px);
-      transition: 120ms ease;
-    }
-    .pauseBadge.show{
-      opacity:1;
-      transform: translateY(0px);
-    }
-
-    /* Make whole screen tappable */
-    .tapCatcher{
+    /* Bottom progress bar */
+    .progressWrap{
       position:absolute;
-      inset:0;
-      background:transparent;
+      left:0; right:0;
+      bottom: env(safe-area-inset-bottom);
+      padding: 0 16px 10px 16px;
+      pointer-events:none;
+    }
+    .progressBar{
+      height:4px;
+      border-radius:999px;
+      background:#222;
+      overflow:hidden;
+    }
+    .progressFill{
+      height:100%;
+      width:0%;
+      background:#666;
+      border-radius:999px;
+      transition: width 90ms linear;
+    }
+
+    /* Optional small resume label on home */
+    .resumeNote{
+      margin-top:10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
     }
   </style>
 </head>
@@ -246,31 +311,56 @@
     <header>
       <div>
         <div class="title">RSVP Speed Reader</div>
-        <div class="subtitle">Tap to pause while reading</div>
+        <div class="subtitle">
+          Reading: tap to pause • swipe ←/→ for sentence
+        </div>
       </div>
     </header>
 
     <div class="card">
-      <div style="font-weight:700; margin-bottom:10px;">Words per minute</div>
+      <div style="font-weight:900; margin-bottom:10px;">Words per minute</div>
       <div class="wpmRow" id="wpmRow"></div>
       <div class="hint">Pick a speed (200–900 WPM)</div>
+
+      <div class="sliderWrap">
+        <div style="font-weight:900;">Text size</div>
+        <input type="range" id="sizeSlider" min="0.8" max="1.4" step="0.05" value="1.0" />
+        <div class="pill" id="sizeLabel">100%</div>
+      </div>
+      <div class="hint">Adjust the RSVP word size</div>
     </div>
 
     <div class="card">
-      <div style="font-weight:700; margin-bottom:10px;">Paste text</div>
+      <div style="font-weight:900; margin-bottom:10px;">Paste text</div>
+
+      <div class="row" style="margin-bottom:10px;">
+        <input id="saveName" placeholder="Name (e.g. Article 1)" />
+        <button class="miniBtn" id="saveBtn">Save</button>
+      </div>
+
+      <div class="row" style="margin-bottom:10px;">
+        <select id="savedSelect">
+          <option value="">Load saved text…</option>
+        </select>
+        <button class="miniBtn" id="loadBtn">Load</button>
+        <button class="miniBtn" id="deleteBtn">Delete</button>
+      </div>
+
       <textarea id="textInput" placeholder="Paste or type your text here..."></textarea>
-      <div class="hint" style="margin-top:8px;">
-        Tip: Short taps pause/resume during reading. Use Exit to go back.
+
+      <div class="resumeNote">
+        <div class="hint" id="resumeHint">No saved progress loaded.</div>
+        <button class="miniBtn" id="restartBtn">Restart</button>
+      </div>
+
+      <div class="hint" style="margin-top:10px;">
+        Home screen: open in Safari → Share → <b>Add to Home Screen</b>
       </div>
     </div>
 
     <div class="actions">
       <button class="primary" id="startBtn" style="flex:1;">Start Reading</button>
       <button id="clearBtn">Clear</button>
-    </div>
-
-    <div class="hint">
-      iPhone home screen: open in Safari → Share → <b>Add to Home Screen</b>.
     </div>
   </div>
 
@@ -279,7 +369,6 @@
     <div class="tapCatcher" id="tapCatcher" aria-label="Tap to pause/resume"></div>
 
     <div class="topBar">
-      <div class="status" id="statusText">Playing • 300 WPM</div>
       <button class="smallBtn" id="exitBtn">Exit</button>
     </div>
 
@@ -291,37 +380,63 @@
           <span class="right" id="rightPart"></span>
         </div>
       </div>
+    </div>
 
-      <div class="pauseBadge" id="pauseBadge">Paused</div>
-      <div class="hint" style="text-align:center;">
-        Tap anywhere to pause/resume
+    <div class="progressWrap">
+      <div class="progressBar">
+        <div class="progressFill" id="progressFill"></div>
       </div>
     </div>
   </div>
 
   <script>
-    // ---------- WPM UI ----------
+    // -------------------------
+    // LocalStorage keys
+    // -------------------------
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v2";
+    const STORE_KEY_PREFS = "rsvp_prefs_v1";
+
+    // saved map shape:
+    // {
+    //   "Name": { text: "...", progressWordIndex: 123, updatedAt: 1234567890 }
+    // }
+
+    // -------------------------
+    // State
+    // -------------------------
     const wpmPresets = [200,300,400,500,600,700,800,900];
     let selectedWpm = 300;
 
+    let currentDocName = "";        // name of loaded/saved text
+    let currentDocText = "";        // snapshot of the text used to read
+    let lastPersistedIdx = -1;
+
+    let words = [];
+    let idx = 0;
+    let timer = null;
+    let isPlaying = false;
+
+    // sentence navigation support
+    let sentenceStarts = []; // array of word-start indices of each sentence
+    let wordToSentence = []; // for each word index -> sentence index
+
+    // -------------------------
+    // DOM refs
+    // -------------------------
     const wpmRow = document.getElementById('wpmRow');
 
-    function renderWpmButtons() {
-      wpmRow.innerHTML = '';
-      wpmPresets.forEach(wpm => {
-        const btn = document.createElement('button');
-        btn.className = 'wpmBtn' + (wpm === selectedWpm ? ' active' : '');
-        btn.textContent = wpm + ' WPM';
-        btn.onclick = () => {
-          selectedWpm = wpm;
-          renderWpmButtons();
-        };
-        wpmRow.appendChild(btn);
-      });
-    }
-    renderWpmButtons();
+    const sizeSlider = document.getElementById('sizeSlider');
+    const sizeLabel = document.getElementById('sizeLabel');
 
-    // ---------- RSVP Logic ----------
+    const saveName = document.getElementById('saveName');
+    const saveBtn = document.getElementById('saveBtn');
+    const savedSelect = document.getElementById('savedSelect');
+    const loadBtn = document.getElementById('loadBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const restartBtn = document.getElementById('restartBtn');
+
+    const resumeHint = document.getElementById('resumeHint');
+
     const textInput = document.getElementById('textInput');
     const startBtn = document.getElementById('startBtn');
     const clearBtn = document.getElementById('clearBtn');
@@ -334,14 +449,97 @@
     const centerPart = document.getElementById('centerPart');
     const rightPart = document.getElementById('rightPart');
 
-    const statusText = document.getElementById('statusText');
-    const pauseBadge = document.getElementById('pauseBadge');
+    const progressFill = document.getElementById('progressFill');
 
-    let words = [];
-    let idx = 0;
-    let timer = null;
-    let isPlaying = false;
+    // -------------------------
+    // Helpers: storage
+    // -------------------------
+    function loadSavedTexts() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY_TEXTS) || "{}"); }
+      catch { return {}; }
+    }
 
+    function saveSavedTexts(map) {
+      localStorage.setItem(STORE_KEY_TEXTS, JSON.stringify(map));
+    }
+
+    function refreshSavedDropdown() {
+      const map = loadSavedTexts();
+      const current = savedSelect.value;
+
+      savedSelect.innerHTML = '<option value="">Load saved text…</option>';
+
+      Object.keys(map).sort((a,b)=>a.localeCompare(b)).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        savedSelect.appendChild(opt);
+      });
+
+      if (current && map[current]) savedSelect.value = current;
+    }
+
+    // -------------------------
+    // Helpers: prefs
+    // -------------------------
+    function loadPrefs() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY_PREFS) || "{}"); }
+      catch { return {}; }
+    }
+
+    function savePrefs() {
+      localStorage.setItem(STORE_KEY_PREFS, JSON.stringify({
+        wpm: selectedWpm,
+        scale: parseFloat(sizeSlider.value)
+      }));
+    }
+
+    function applyPrefs() {
+      const prefs = loadPrefs();
+      if (prefs.wpm && wpmPresets.includes(prefs.wpm)) selectedWpm = prefs.wpm;
+      if (prefs.scale) {
+        const s = Math.max(0.8, Math.min(1.4, prefs.scale));
+        sizeSlider.value = s;
+        setRsvpScale(s);
+      } else {
+        setRsvpScale(parseFloat(sizeSlider.value));
+      }
+    }
+
+    // -------------------------
+    // UI: WPM
+    // -------------------------
+    function renderWpmButtons() {
+      wpmRow.innerHTML = '';
+      wpmPresets.forEach(wpm => {
+        const btn = document.createElement('button');
+        btn.className = 'wpmBtn' + (wpm === selectedWpm ? ' active' : '');
+        btn.textContent = wpm + ' WPM';
+        btn.onclick = () => {
+          selectedWpm = wpm;
+          renderWpmButtons();
+          savePrefs();
+        };
+        wpmRow.appendChild(btn);
+      });
+    }
+
+    // -------------------------
+    // UI: RSVP size
+    // -------------------------
+    function setRsvpScale(scale) {
+      document.documentElement.style.setProperty('--rsvpScale', String(scale));
+      sizeLabel.textContent = Math.round(scale * 100) + "%";
+    }
+
+    sizeSlider.addEventListener('input', () => {
+      setRsvpScale(parseFloat(sizeSlider.value));
+      savePrefs();
+    });
+
+    // -------------------------
+    // Text utilities
+    // -------------------------
     function normalizeText(str) {
       return str
         .replace(/\s+/g, ' ')
@@ -350,52 +548,81 @@
         .trim();
     }
 
-    function tokenize(str) {
-      // Split on spaces but keep punctuation attached to words (simple + fast)
-      // Example: "hello," stays as one token.
+    function tokenizeWords(str) {
       return str.split(' ').filter(Boolean);
     }
 
-    // ORP = "Optimal Recognition Point" (Spritz-like)
+    // Sentence splitting: keep punctuation on sentence
+    function splitIntoSentences(str) {
+      // A practical sentence splitter:
+      // - splits on ., !, ? followed by space/newline
+      // - keeps punctuation attached
+      const parts = str.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+      return (parts || []).map(s => s.trim()).filter(Boolean);
+    }
+
+    function buildSentenceIndexing(text) {
+      const sentences = splitIntoSentences(text);
+      const starts = [];
+      const map = [];
+
+      let runningWordIndex = 0;
+      const allWords = [];
+
+      sentences.forEach((s, si) => {
+        const w = tokenizeWords(s);
+        if (w.length === 0) return;
+
+        starts.push(runningWordIndex);
+
+        for (let i = 0; i < w.length; i++) {
+          map[runningWordIndex + i] = si;
+        }
+
+        allWords.push(...w);
+        runningWordIndex += w.length;
+      });
+
+      // If sentence split failed for some reason, fallback to word array
+      if (allWords.length === 0) {
+        const fallback = tokenizeWords(text);
+        fallback.forEach((_, wi) => map[wi] = 0);
+        return {
+          words: fallback,
+          sentenceStarts: [0],
+          wordToSentence: map
+        };
+      }
+
+      return {
+        words: allWords,
+        sentenceStarts: starts,
+        wordToSentence: map
+      };
+    }
+
+    // ORP / center-letter display
     function getOrpIndex(word) {
       const len = word.length;
-
-      // Ignore pure punctuation tokens
       const lettersOnly = word.replace(/[^A-Za-z0-9ÅÆØåæø]/g, '');
       if (!lettersOnly) return Math.min(0, len - 1);
 
-      // A simple, practical ORP rule:
-      // ~35% into the word, clamped to [1, len-2] where possible.
       let orp = Math.round(len * 0.35);
 
       if (len <= 1) orp = 0;
       else if (len === 2) orp = 0;
-      else {
-        orp = Math.max(1, Math.min(len - 2, orp));
-      }
+      else orp = Math.max(1, Math.min(len - 2, orp));
+
       return orp;
     }
 
     function splitForDisplay(word) {
       const orp = getOrpIndex(word);
-      const left = word.slice(0, orp);
-      const center = word[orp] ?? '';
-      const right = word.slice(orp + 1);
-
-      return { left, center, right };
-    }
-
-    function msPerWord(wpm) {
-      // 60,000 ms / words per minute
-      return 60000 / wpm;
-    }
-
-    function extraDelay(word) {
-      // Add tiny pauses for punctuation (feels more natural)
-      if (/[.!?]$/.test(word)) return 220;
-      if (/[,;:]$/.test(word)) return 120;
-      if (word.length >= 10) return 80;
-      return 0;
+      return {
+        left: word.slice(0, orp),
+        center: word[orp] ?? '',
+        right: word.slice(orp + 1),
+      };
     }
 
     function showWord(word) {
@@ -405,23 +632,82 @@
       rightPart.textContent = parts.right;
     }
 
-    function updateStatus() {
-      statusText.textContent = (isPlaying ? 'Playing' : 'Paused') + ' • ' + selectedWpm + ' WPM';
-      pauseBadge.classList.toggle('show', !isPlaying);
+    function msPerWord(wpm) {
+      return 60000 / wpm;
     }
 
+    function extraDelay(word) {
+      if (/[.!?]$/.test(word)) return 220;
+      if (/[,;:]$/.test(word)) return 120;
+      if (word.length >= 10) return 80;
+      return 0;
+    }
+
+    // -------------------------
+    // Progress bar
+    // -------------------------
+    function updateProgressBar() {
+      const total = Math.max(1, words.length);
+      const p = Math.max(0, Math.min(1, idx / total));
+      progressFill.style.width = (p * 100).toFixed(2) + "%";
+    }
+
+    // -------------------------
+    // Save progress for current doc
+    // -------------------------
+    function persistProgressIfPossible(force=false) {
+      if (!currentDocName) return;
+      if (!words.length) return;
+
+      // avoid hammering localStorage
+      if (!force && idx === lastPersistedIdx) return;
+
+      const map = loadSavedTexts();
+      const entry = map[currentDocName];
+      if (!entry) return;
+
+      // Only persist if text matches the saved one
+      if ((entry.text || "") !== currentDocText) return;
+
+      entry.progressWordIndex = Math.max(0, Math.min(words.length - 1, idx));
+      entry.updatedAt = Date.now();
+      map[currentDocName] = entry;
+
+      saveSavedTexts(map);
+      lastPersistedIdx = idx;
+      updateResumeHint();
+    }
+
+    function updateResumeHint() {
+      const map = loadSavedTexts();
+      if (!currentDocName || !map[currentDocName]) {
+        resumeHint.textContent = "No saved progress loaded.";
+        return;
+      }
+      const e = map[currentDocName];
+      const totalWords = tokenizeWords(normalizeText(e.text || "")).length || 1;
+      const prog = Math.max(0, Math.min(totalWords, e.progressWordIndex || 0));
+      const pct = Math.round((prog / totalWords) * 100);
+      resumeHint.textContent = `Loaded: "${currentDocName}" • Resume at ${pct}%`;
+    }
+
+    // -------------------------
+    // Playback controls
+    // -------------------------
     function step() {
       if (!isPlaying) return;
       if (idx >= words.length) {
-        pause(); // stop at end
+        pause();
         return;
       }
 
       const w = words[idx++];
       showWord(w);
 
-      const delay = msPerWord(selectedWpm) + extraDelay(w);
+      updateProgressBar();
+      persistProgressIfPossible(false);
 
+      const delay = msPerWord(selectedWpm) + extraDelay(w);
       clearTimeout(timer);
       timer = setTimeout(step, delay);
     }
@@ -429,15 +715,14 @@
     function play() {
       if (words.length === 0) return;
       isPlaying = true;
-      updateStatus();
       step();
     }
 
     function pause() {
       isPlaying = false;
-      updateStatus();
       clearTimeout(timer);
       timer = null;
+      persistProgressIfPossible(true);
     }
 
     function togglePlayPause() {
@@ -448,7 +733,6 @@
 
     function enterReadingMode() {
       overlay.classList.add('show');
-      // Prevent body scrolling behind overlay
       document.body.style.overflow = 'hidden';
     }
 
@@ -458,50 +742,234 @@
       document.body.style.overflow = '';
     }
 
-    startBtn.addEventListener('click', () => {
-      const raw = normalizeText(textInput.value);
-      if (!raw) {
-        alert('Paste some text first.');
+    // -------------------------
+    // Sentence navigation via swipe
+    // -------------------------
+    function getCurrentSentenceIndex() {
+      const at = Math.max(0, Math.min(words.length - 1, Math.max(0, idx - 1)));
+      return wordToSentence[at] ?? 0;
+    }
+
+    function jumpToSentence(sentenceIndex) {
+      if (!sentenceStarts.length) return;
+      const s = Math.max(0, Math.min(sentenceStarts.length - 1, sentenceIndex));
+      idx = sentenceStarts[s];
+
+      idx = Math.max(0, Math.min(words.length - 1, idx));
+      showWord(words[idx] || "");
+      updateProgressBar();
+      persistProgressIfPossible(true);
+    }
+
+    function nextSentence() {
+      const s = getCurrentSentenceIndex();
+      jumpToSentence(s + 1);
+    }
+
+    function prevSentence() {
+      const s = getCurrentSentenceIndex();
+      jumpToSentence(s - 1);
+    }
+
+    // Swipe detection
+    let touchStartX = 0, touchStartY = 0;
+    tapCatcher.addEventListener('touchstart', (e) => {
+      const t = e.changedTouches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+    }, { passive: true });
+
+    tapCatcher.addEventListener('touchend', (e) => {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      // If it's a swipe, do sentence jump.
+      if (absX > 45 && absY < 30) {
+        // swipe left -> next sentence
+        if (dx < 0) nextSentence();
+        else prevSentence();
         return;
       }
 
-      words = tokenize(raw);
-      idx = 0;
+      // Otherwise treat as a tap -> pause/resume
+      togglePlayPause();
+    }, { passive: true });
 
-      enterReadingMode();
-      showWord(words[0] || '');
-      play();
+    // Desktop click -> pause/resume
+    tapCatcher.addEventListener('click', () => {
+      togglePlayPause();
+    });
+
+    // -------------------------
+    // Home actions: save/load/delete/restart
+    // -------------------------
+    saveBtn.addEventListener('click', () => {
+      const name = (saveName.value || "").trim();
+      const text = normalizeText(textInput.value || "");
+
+      if (!name) { alert("Give it a name first."); return; }
+      if (!text) { alert("Nothing to save — paste some text first."); return; }
+
+      const map = loadSavedTexts();
+
+      // If new, start progress at 0
+      // If overwriting existing, keep progress ONLY if text is unchanged
+      const prev = map[name];
+      let progressWordIndex = 0;
+
+      if (prev && (prev.text || "") === text) {
+        progressWordIndex = prev.progressWordIndex || 0;
+      } else {
+        progressWordIndex = 0;
+      }
+
+      map[name] = {
+        text,
+        progressWordIndex,
+        updatedAt: Date.now()
+      };
+
+      saveSavedTexts(map);
+
+      currentDocName = name;
+      currentDocText = text;
+      savedSelect.value = name;
+
+      refreshSavedDropdown();
+      updateResumeHint();
+
+      alert("Saved ✅");
+    });
+
+    loadBtn.addEventListener('click', () => {
+      const name = savedSelect.value;
+      if (!name) { alert("Pick a saved item to load."); return; }
+
+      const map = loadSavedTexts();
+      const entry = map[name];
+      if (!entry) { alert("That saved text is missing."); refreshSavedDropdown(); return; }
+
+      currentDocName = name;
+      currentDocText = normalizeText(entry.text || "");
+      textInput.value = currentDocText;
+
+      updateResumeHint();
+    });
+
+    deleteBtn.addEventListener('click', () => {
+      const name = savedSelect.value;
+      if (!name) { alert("Pick a saved item to delete."); return; }
+      if (!confirm(`Delete "${name}"?`)) return;
+
+      const map = loadSavedTexts();
+      delete map[name];
+      saveSavedTexts(map);
+
+      if (currentDocName === name) {
+        currentDocName = "";
+        currentDocText = "";
+      }
+
+      refreshSavedDropdown();
+      updateResumeHint();
+      textInput.focus();
+    });
+
+    restartBtn.addEventListener('click', () => {
+      if (!currentDocName) {
+        // If not loaded from saved, just reset nothing special
+        alert("Load a saved text to restart its progress.");
+        return;
+      }
+      const map = loadSavedTexts();
+      const entry = map[currentDocName];
+      if (!entry) return;
+
+      entry.progressWordIndex = 0;
+      entry.updatedAt = Date.now();
+      map[currentDocName] = entry;
+      saveSavedTexts(map);
+
+      updateResumeHint();
+      alert("Progress reset ✅");
     });
 
     clearBtn.addEventListener('click', () => {
       textInput.value = '';
+      currentDocName = "";
+      currentDocText = "";
+      updateResumeHint();
       textInput.focus();
+    });
+
+    // -------------------------
+    // Start reading (auto resume if saved)
+    // -------------------------
+    startBtn.addEventListener('click', () => {
+      const raw = normalizeText(textInput.value || "");
+      if (!raw) { alert("Paste some text first."); return; }
+
+      // Build sentence-aware tokenization
+      const built = buildSentenceIndexing(raw);
+      words = built.words;
+      sentenceStarts = built.sentenceStarts;
+      wordToSentence = built.wordToSentence;
+
+      idx = 0;
+
+      // If current text matches a saved doc, resume
+      if (currentDocName) {
+        const map = loadSavedTexts();
+        const entry = map[currentDocName];
+        if (entry && normalizeText(entry.text || "") === raw) {
+          currentDocText = raw;
+          idx = Math.max(0, Math.min(words.length - 1, entry.progressWordIndex || 0));
+        } else {
+          // text changed -> no resume
+          currentDocText = raw;
+          idx = 0;
+        }
+      } else {
+        currentDocText = raw;
+      }
+
+      lastPersistedIdx = -1;
+
+      enterReadingMode();
+      showWord(words[idx] || "");
+      updateProgressBar();
+      play();
     });
 
     exitBtn.addEventListener('click', () => {
       exitReadingMode();
     });
 
-    // Tap anywhere in reading mode pauses (tap again resumes)
-    tapCatcher.addEventListener('click', () => {
-      togglePlayPause();
-    });
-
-    // Spacebar toggle on desktop
-    window.addEventListener('keydown', (e) => {
-      if (!overlay.classList.contains('show')) return;
-      if (e.code === 'Space') {
-        e.preventDefault();
-        togglePlayPause();
-      }
-      if (e.key === 'Escape') {
-        exitReadingMode();
-      }
-    });
-
-    // Default selection highlight
-    selectedWpm = 300;
+    // -------------------------
+    // Init
+    // -------------------------
+    applyPrefs();
     renderWpmButtons();
+    refreshSavedDropdown();
+    updateResumeHint();
+
+    // Also update hint if user changes selection manually
+    savedSelect.addEventListener('change', () => {
+      const name = savedSelect.value;
+      if (!name) return;
+      const map = loadSavedTexts();
+      const entry = map[name];
+      if (!entry) return;
+
+      currentDocName = name;
+      currentDocText = normalizeText(entry.text || "");
+      // don't auto-load into textarea on just selection (keeps UX clean)
+      updateResumeHint();
+    });
   </script>
 </body>
 </html>
