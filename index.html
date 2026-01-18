@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#000000" />
   <title>RSVP Speed Reader</title>
 
-  <!-- ✅ PDF.js LEGACY build (much more iPhone/home-screen friendly than v4) -->
+  <!-- ✅ iPhone-friendly PDF approach: PDF.js legacy + workerless -->
   <script src="https://unpkg.com/pdfjs-dist@2.16.105/legacy/build/pdf.min.js"></script>
   <!-- OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -18,12 +18,16 @@
       --bg:#000;
       --fg:#fff;
       --accent:#ff3b30;
+
       --muted:#a0a0a0;
       --card:#111;
       --border:#222;
       --btn:#1c1c1e;
       --btn2:#2c2c2e;
-      --rsvpScale: 1.0; /* 20%..200% => 0.2..2.0 */
+
+      --rsvpScale: 1.0;          /* 0.2..2.0 => 20..200% */
+      --orpLeftWidth: 12ch;      /* key for stable ORP alignment */
+      --orpRightWidth: 12ch;     /* key for stable ORP alignment */
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -146,7 +150,9 @@
       gap:10px;
     }
 
-    /* Reading overlay */
+    /* -------------------------
+       Reading overlay (clean)
+       ------------------------- */
     .overlay{
       position:fixed;
       inset:0;
@@ -158,12 +164,6 @@
       z-index:9999;
     }
     .overlay.show{ display:flex; }
-
-    .tapCatcher{
-      position:absolute;
-      inset:0;
-      background:transparent;
-    }
 
     .topBar{
       position:absolute;
@@ -179,23 +179,24 @@
     .smallBtn{
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(28,28,30,0.75);
-      border:1px solid rgba(34,34,34,0.9);
+      background:rgba(28,28,30,0.55);
+      border:1px solid rgba(90,90,90,0.35);
       font-weight:950;
       font-size:14px;
-      color:var(--fg);
+      color:#c8c8c8;
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
     }
 
     .overlayInner{
       width:100%;
-      max-width:680px;
+      max-width:720px;
       display:flex;
       flex-direction:column;
       align-items:center;
       justify-content:center;
       user-select:none;
+      padding-bottom: 88px; /* space for bottom controls */
     }
 
     .wordBox{
@@ -203,43 +204,50 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      min-height:180px;
+      min-height:200px;
       padding: 0 6px;
     }
 
+    /* ✅ Stable center alignment using fixed grid columns */
     .word{
-      font-weight:950;
-      font-size: calc(clamp(44px, 8vw, 90px) * var(--rsvpScale));
-      letter-spacing: 0.5px;
-      line-height:1;
-      display:flex;
+      display:grid;
+      grid-template-columns: var(--orpLeftWidth) 1ch var(--orpRightWidth);
       align-items:baseline;
       justify-content:center;
+      font-weight:950;
+      font-size: calc(clamp(46px, 8vw, 92px) * var(--rsvpScale));
+      letter-spacing: 0.2px;
+      line-height:1;
       font-variant-ligatures:none;
-      text-align:center;
+      text-rendering: optimizeLegibility;
     }
 
-    .left, .right{
-      display:inline-block;
-      min-width: 2ch;
+    .left{
       text-align:right;
-      color:var(--fg);
       opacity:0.96;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:clip;
     }
-    .right{ text-align:left; }
-
     .center{
+      text-align:center;
       color:var(--accent);
-      padding:0 2px;
-      text-shadow: 0 0 10px rgba(255,59,48,0.12);
+      text-shadow: 0 0 12px rgba(255,59,48,0.14);
+    }
+    .right{
+      text-align:left;
+      opacity:0.96;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:clip;
     }
 
-    /* Bottom progress bar */
+    /* Bottom progress bar (above controls) */
     .progressWrap{
       position:absolute;
       left:0; right:0;
-      bottom: env(safe-area-inset-bottom);
-      padding: 0 16px 10px 16px;
+      bottom: calc(env(safe-area-inset-bottom) + 66px);
+      padding: 0 16px 8px 16px;
       pointer-events:none;
     }
     .progressBar{
@@ -255,6 +263,48 @@
       border-radius:999px;
       transition: width 90ms linear;
     }
+
+    /* Bottom controls */
+    .controls{
+      position:absolute;
+      left:0; right:0;
+      bottom: env(safe-area-inset-bottom);
+      padding: 10px 16px 12px 16px;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:12px;
+    }
+
+    .ctlBtn{
+      width:64px;
+      height:52px;
+      border-radius:14px;
+      background:transparent;
+      border:1px solid rgba(130,130,130,0.45);
+      color:#c8c8c8;
+      font-weight:950;
+      font-size:20px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .ctlBtn.big{
+      width:110px;
+      font-size:16px;
+      letter-spacing:0.2px;
+    }
+
+    .ctlBtn:active{
+      transform: scale(0.98);
+      border-color: rgba(200,200,200,0.6);
+    }
+
+    .ctlBtn[disabled]{
+      opacity:0.35;
+      transform:none;
+    }
   </style>
 </head>
 
@@ -263,7 +313,7 @@
     <header>
       <div>
         <div class="title">RSVP Speed Reader</div>
-        <div class="subtitle">Tap to pause • Swipe sentence when paused</div>
+        <div class="subtitle">Use controls while reading (− Pause +)</div>
       </div>
     </header>
 
@@ -325,8 +375,6 @@
 
   <!-- Reading overlay -->
   <div class="overlay" id="overlay">
-    <div class="tapCatcher" id="tapCatcher"></div>
-
     <div class="topBar">
       <button class="smallBtn" id="exitBtn">Exit</button>
     </div>
@@ -346,21 +394,26 @@
         <div class="progressFill" id="progressFill"></div>
       </div>
     </div>
+
+    <!-- ✅ Bottom controls -->
+    <div class="controls">
+      <button class="ctlBtn" id="backBtn" title="Back sentence">−</button>
+      <button class="ctlBtn big" id="pauseBtn" title="Pause/Play">Pause</button>
+      <button class="ctlBtn" id="nextBtn" title="Next sentence">+</button>
+    </div>
   </div>
 
   <script>
     /* ==========================
        PDF CONFIG (LEGACY, WORKERLESS)
        ========================== */
-    // For maximum iPhone compatibility we run without workers.
-    // This avoids most “PDF load does nothing” failures.
     window.pdfjsLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
 
     /* ==========================
        STORAGE KEYS
        ========================== */
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v6";
-    const STORE_KEY_PREFS = "rsvp_prefs_v5";
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v7";
+    const STORE_KEY_PREFS = "rsvp_prefs_v6";
 
     /* ==========================
        STATE
@@ -407,13 +460,16 @@
 
     const overlay = document.getElementById('overlay');
     const exitBtn = document.getElementById('exitBtn');
-    const tapCatcher = document.getElementById('tapCatcher');
 
     const leftPart = document.getElementById('leftPart');
     const centerPart = document.getElementById('centerPart');
     const rightPart = document.getElementById('rightPart');
 
     const progressFill = document.getElementById('progressFill');
+
+    const backBtn = document.getElementById('backBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const nextBtn = document.getElementById('nextBtn');
 
     /* ==========================
        HELPERS
@@ -580,6 +636,7 @@
     }
     function applyPrefs() {
       const prefs = loadPrefs();
+
       if (prefs.wpm) {
         const w = Math.max(100, Math.min(900, Math.round(prefs.wpm / 100) * 100));
         selectedWpm = w;
@@ -615,6 +672,21 @@
     /* ==========================
        PLAYBACK
        ========================== */
+    function updateControlState() {
+      pauseBtn.textContent = isPlaying ? "Pause" : "Play";
+
+      // Sentence boundaries only known when words exist
+      if (!words.length) {
+        backBtn.disabled = true;
+        nextBtn.disabled = true;
+        return;
+      }
+
+      const s = getCurrentSentenceIndex();
+      backBtn.disabled = (s <= 0);
+      nextBtn.disabled = (s >= sentenceStarts.length - 1);
+    }
+
     function step() {
       if (!isPlaying) return;
       if (idx >= words.length) { pause(); return; }
@@ -630,22 +702,31 @@
       timer = setTimeout(step, delay);
     }
 
-    function play() { if (!words.length) return; isPlaying = true; step(); }
+    function play() {
+      if (!words.length) return;
+      isPlaying = true;
+      updateControlState();
+      step();
+    }
+
     function pause() {
       isPlaying = false;
       clearTimeout(timer);
       timer = null;
       persistProgressIfPossible(true);
+      updateControlState();
     }
 
     function togglePlayPause() {
       if (!overlay.classList.contains('show')) return;
-      if (isPlaying) pause(); else play();
+      if (isPlaying) pause();
+      else play();
     }
 
     function enterReadingMode() {
       overlay.classList.add('show');
       document.body.style.overflow='hidden';
+      updateControlState();
     }
 
     function exitReadingMode() {
@@ -654,6 +735,9 @@
       document.body.style.overflow='';
     }
 
+    /* ==========================
+       Sentence navigation (buttons)
+       ========================== */
     function getCurrentSentenceIndex() {
       const at = Math.max(0, Math.min(words.length - 1, Math.max(0, idx - 1)));
       return wordToSentence[at] ?? 0;
@@ -663,39 +747,30 @@
       if (!sentenceStarts.length) return;
       const s = Math.max(0, Math.min(sentenceStarts.length - 1, sentenceIndex));
       idx = sentenceStarts[s];
+
       idx = Math.max(0, Math.min(words.length - 1, idx));
       showWord(words[idx] || "");
       updateProgressBar();
       persistProgressIfPossible(true);
+
+      // Stay paused after manual jump (more predictable)
+      pause();
+      updateControlState();
     }
 
-    function nextSentence() { jumpToSentence(getCurrentSentenceIndex() + 1); }
-    function prevSentence() { jumpToSentence(getCurrentSentenceIndex() - 1); }
+    backBtn.addEventListener('click', () => {
+      if (!words.length) return;
+      const s = getCurrentSentenceIndex();
+      jumpToSentence(s - 1);
+    });
 
-    // Tap always toggles, swipe only when paused
-    let touchStartX=0, touchStartY=0, touchStartT=0;
-    tapCatcher.addEventListener('touchstart', (e)=>{
-      const t=e.changedTouches[0];
-      touchStartX=t.clientX; touchStartY=t.clientY; touchStartT=performance.now();
-    }, {passive:true});
+    nextBtn.addEventListener('click', () => {
+      if (!words.length) return;
+      const s = getCurrentSentenceIndex();
+      jumpToSentence(s + 1);
+    });
 
-    tapCatcher.addEventListener('touchend', (e)=>{
-      const t=e.changedTouches[0];
-      const dx=t.clientX-touchStartX;
-      const dy=t.clientY-touchStartY;
-      const dt=performance.now()-touchStartT;
-
-      const absX=Math.abs(dx), absY=Math.abs(dy);
-      const isSwipe=(absX>60 && absY<35 && dt<650);
-
-      if (!isPlaying && isSwipe) {
-        if (dx < 0) nextSentence(); else prevSentence();
-        return;
-      }
-      togglePlayPause();
-    }, {passive:true});
-
-    tapCatcher.addEventListener('click', ()=>togglePlayPause());
+    pauseBtn.addEventListener('click', () => togglePlayPause());
 
     /* ==========================
        SAVE/LOAD
@@ -786,6 +861,7 @@
       wordToSentence=built.wordToSentence;
 
       idx=0;
+
       if(currentDocName){
         const map=loadSavedTexts();
         const entry=map[currentDocName];
@@ -805,15 +881,17 @@
       enterReadingMode();
       showWord(words[idx]||"");
       updateProgressBar();
+
+      // Start in play mode immediately
       play();
     });
 
     exitBtn.addEventListener('click', ()=>exitReadingMode());
 
     /* ==========================
-       PDF IMPORT (DIFFERENT APPROACH)
-       ✅ PDF.js legacy + workerless
-       ✅ Per-page fallback OCR when text is missing
+       PDF IMPORT (robust)
+       - PDF.js legacy + disableWorker
+       - OCR fallback per page
        ========================== */
     pdfBtn.addEventListener('click', ()=>{
       pdfInput.value="";
@@ -845,16 +923,13 @@
 
       pdfStatus.textContent = "Opening PDF…";
 
-      // IMPORTANT: disableWorker=true for max iOS compatibility
       const loadingTask = pdfjsLib.getDocument({ data: uint8, disableWorker: true });
       const pdf = await loadingTask.promise;
 
       const pageCount = pdf.numPages;
 
-      // OCR worker once
       const worker = await Tesseract.createWorker("eng");
 
-      // OCR heuristic + cap for iPhone safety (auto)
       const OCR_TEXT_THRESHOLD = 60;
       const MAX_OCR_PAGES = 40;
       let ocrUsed = 0;
@@ -866,7 +941,6 @@
           pdfStatus.textContent = `Reading PDF… Page ${p}/${pageCount}`;
           const page = await pdf.getPage(p);
 
-          // Fast extraction
           let fastText = "";
           try {
             const content = await page.getTextContent();
@@ -923,9 +997,8 @@
           ? `PDF loaded ✅ (${res.pages} pages, OCR ${res.ocrPages}p, ~${k}k chars)`
           : `PDF loaded ✅ (${res.pages} pages, ~${k}k chars)`;
       } catch (err) {
-        // no console needed
         pdfStatus.textContent = "PDF load failed ❌";
-        alert("PDF load failed on this device. Try a smaller PDF or share the PDF file with fewer pages.");
+        alert("PDF load failed on this device.");
       }
     });
 
@@ -935,6 +1008,7 @@
     applyPrefs();
     refreshSavedDropdown();
     updateResumeHint();
+    updateControlState();
 
     savedSelect.addEventListener('change', ()=>{
       const name=savedSelect.value;
