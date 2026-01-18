@@ -8,9 +8,9 @@
   <meta name="theme-color" content="#000000" />
   <title>RSVP Speed Reader</title>
 
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js"></script>
-  <!-- Tesseract OCR -->
+  <!-- ✅ PDF.js LEGACY build (much more iPhone/home-screen friendly than v4) -->
+  <script src="https://unpkg.com/pdfjs-dist@2.16.105/legacy/build/pdf.min.js"></script>
+  <!-- OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
@@ -32,7 +32,7 @@
       font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* Red sliders on iOS */
+    /* Red sliders */
     input[type="range"]{ accent-color: var(--accent); }
 
     .app{
@@ -146,7 +146,7 @@
       gap:10px;
     }
 
-    /* Reading overlay (clean) */
+    /* Reading overlay */
     .overlay{
       position:fixed;
       inset:0;
@@ -349,24 +349,22 @@
   </div>
 
   <script>
-    // ---- PDF.js worker fix (CRITICAL) ----
-    // Without this, Safari/GitHub Pages often fails to load PDFs.
-    try {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
-    } catch (e) {
-      // ignore
-    }
+    /* ==========================
+       PDF CONFIG (LEGACY, WORKERLESS)
+       ========================== */
+    // For maximum iPhone compatibility we run without workers.
+    // This avoids most “PDF load does nothing” failures.
+    window.pdfjsLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
 
-    // -------------------------
-    // LocalStorage keys
-    // -------------------------
-    const STORE_KEY_TEXTS = "rsvp_saved_texts_v5";
-    const STORE_KEY_PREFS = "rsvp_prefs_v4";
+    /* ==========================
+       STORAGE KEYS
+       ========================== */
+    const STORE_KEY_TEXTS = "rsvp_saved_texts_v6";
+    const STORE_KEY_PREFS = "rsvp_prefs_v5";
 
-    // -------------------------
-    // State
-    // -------------------------
+    /* ==========================
+       STATE
+       ========================== */
     let selectedWpm = 300;
 
     let currentDocName = "";
@@ -381,9 +379,9 @@
     let sentenceStarts = [];
     let wordToSentence = [];
 
-    // -------------------------
-    // DOM refs
-    // -------------------------
+    /* ==========================
+       DOM
+       ========================== */
     const wpmSlider = document.getElementById('wpmSlider');
     const wpmLabel  = document.getElementById('wpmLabel');
 
@@ -417,86 +415,9 @@
 
     const progressFill = document.getElementById('progressFill');
 
-    // -------------------------
-    // Storage helpers
-    // -------------------------
-    function loadSavedTexts() {
-      try { return JSON.parse(localStorage.getItem(STORE_KEY_TEXTS) || "{}"); }
-      catch { return {}; }
-    }
-    function saveSavedTexts(map) {
-      localStorage.setItem(STORE_KEY_TEXTS, JSON.stringify(map));
-    }
-    function refreshSavedDropdown() {
-      const map = loadSavedTexts();
-      const current = savedSelect.value;
-
-      savedSelect.innerHTML = '<option value="">Load saved text…</option>';
-      Object.keys(map).sort((a,b)=>a.localeCompare(b)).forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        savedSelect.appendChild(opt);
-      });
-
-      if (current && map[current]) savedSelect.value = current;
-    }
-
-    // -------------------------
-    // Prefs
-    // -------------------------
-    function loadPrefs() {
-      try { return JSON.parse(localStorage.getItem(STORE_KEY_PREFS) || "{}"); }
-      catch { return {}; }
-    }
-    function savePrefs() {
-      localStorage.setItem(STORE_KEY_PREFS, JSON.stringify({
-        wpm: selectedWpm,
-        scale: parseFloat(sizeSlider.value)
-      }));
-    }
-    function applyPrefs() {
-      const prefs = loadPrefs();
-      if (prefs.wpm) {
-        const w = Math.max(100, Math.min(900, Math.round(prefs.wpm / 100) * 100));
-        selectedWpm = w;
-        wpmSlider.value = String(w);
-        wpmLabel.textContent = String(w);
-      } else {
-        selectedWpm = parseInt(wpmSlider.value, 10);
-        wpmLabel.textContent = String(selectedWpm);
-      }
-
-      if (prefs.scale) {
-        const s = Math.max(0.2, Math.min(2.0, prefs.scale));
-        sizeSlider.value = s;
-        setRsvpScale(s);
-      } else {
-        setRsvpScale(parseFloat(sizeSlider.value));
-      }
-    }
-
-    // -------------------------
-    // Sliders
-    // -------------------------
-    wpmSlider.addEventListener('input', () => {
-      selectedWpm = parseInt(wpmSlider.value, 10);
-      wpmLabel.textContent = String(selectedWpm);
-      savePrefs();
-    });
-
-    function setRsvpScale(scale) {
-      document.documentElement.style.setProperty('--rsvpScale', String(scale));
-      sizeLabel.textContent = Math.round(scale * 100) + "%";
-    }
-    sizeSlider.addEventListener('input', () => {
-      setRsvpScale(parseFloat(sizeSlider.value));
-      savePrefs();
-    });
-
-    // -------------------------
-    // Text utilities
-    // -------------------------
+    /* ==========================
+       HELPERS
+       ========================== */
     function normalizeText(str) {
       return (str || "")
         .replace(/\s+/g, ' ')
@@ -524,7 +445,7 @@
 
       sentences.forEach((s, si) => {
         const w = tokenizeWords(s);
-        if (w.length === 0) return;
+        if (!w.length) return;
 
         starts.push(runningWordIndex);
         for (let i = 0; i < w.length; i++) map[runningWordIndex + i] = si;
@@ -533,11 +454,12 @@
         runningWordIndex += w.length;
       });
 
-      if (allWords.length === 0) {
+      if (!allWords.length) {
         const fallback = tokenizeWords(text);
         fallback.forEach((_, wi) => map[wi] = 0);
         return { words: fallback, sentenceStarts: [0], wordToSentence: map };
       }
+
       return { words: allWords, sentenceStarts: starts, wordToSentence: map };
     }
 
@@ -577,21 +499,39 @@
       return 0;
     }
 
-    // -------------------------
-    // Progress bar
-    // -------------------------
     function updateProgressBar() {
       const total = Math.max(1, words.length);
       const p = Math.max(0, Math.min(1, idx / total));
       progressFill.style.width = (p * 100).toFixed(2) + "%";
     }
 
-    // -------------------------
-    // Persist progress
-    // -------------------------
+    /* ==========================
+       STORAGE
+       ========================== */
+    function loadSavedTexts() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY_TEXTS) || "{}"); }
+      catch { return {}; }
+    }
+    function saveSavedTexts(map) {
+      localStorage.setItem(STORE_KEY_TEXTS, JSON.stringify(map));
+    }
+    function refreshSavedDropdown() {
+      const map = loadSavedTexts();
+      const current = savedSelect.value;
+
+      savedSelect.innerHTML = '<option value="">Load saved text…</option>';
+      Object.keys(map).sort((a,b)=>a.localeCompare(b)).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        savedSelect.appendChild(opt);
+      });
+
+      if (current && map[current]) savedSelect.value = current;
+    }
+
     function persistProgressIfPossible(force=false) {
-      if (!currentDocName) return;
-      if (!words.length) return;
+      if (!currentDocName || !words.length) return;
       if (!force && idx === lastPersistedIdx) return;
 
       const map = loadSavedTexts();
@@ -621,9 +561,60 @@
       resumeHint.textContent = `Loaded: "${currentDocName}" • Resume at ${pct}%`;
     }
 
-    // -------------------------
-    // Playback
-    // -------------------------
+    /* ==========================
+       PREFS
+       ========================== */
+    function loadPrefs() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY_PREFS) || "{}"); }
+      catch { return {}; }
+    }
+    function savePrefs() {
+      localStorage.setItem(STORE_KEY_PREFS, JSON.stringify({
+        wpm: selectedWpm,
+        scale: parseFloat(sizeSlider.value)
+      }));
+    }
+    function setRsvpScale(scale) {
+      document.documentElement.style.setProperty('--rsvpScale', String(scale));
+      sizeLabel.textContent = Math.round(scale * 100) + "%";
+    }
+    function applyPrefs() {
+      const prefs = loadPrefs();
+      if (prefs.wpm) {
+        const w = Math.max(100, Math.min(900, Math.round(prefs.wpm / 100) * 100));
+        selectedWpm = w;
+        wpmSlider.value = String(w);
+      } else {
+        selectedWpm = parseInt(wpmSlider.value, 10);
+      }
+      wpmLabel.textContent = String(selectedWpm);
+
+      if (prefs.scale) {
+        const s = Math.max(0.2, Math.min(2.0, prefs.scale));
+        sizeSlider.value = s;
+        setRsvpScale(s);
+      } else {
+        setRsvpScale(parseFloat(sizeSlider.value));
+      }
+    }
+
+    /* ==========================
+       UI EVENTS
+       ========================== */
+    wpmSlider.addEventListener('input', () => {
+      selectedWpm = parseInt(wpmSlider.value, 10);
+      wpmLabel.textContent = String(selectedWpm);
+      savePrefs();
+    });
+
+    sizeSlider.addEventListener('input', () => {
+      setRsvpScale(parseFloat(sizeSlider.value));
+      savePrefs();
+    });
+
+    /* ==========================
+       PLAYBACK
+       ========================== */
     function step() {
       if (!isPlaying) return;
       if (idx >= words.length) { pause(); return; }
@@ -652,12 +643,17 @@
       if (isPlaying) pause(); else play();
     }
 
-    function enterReadingMode() { overlay.classList.add('show'); document.body.style.overflow='hidden'; }
-    function exitReadingMode() { pause(); overlay.classList.remove('show'); document.body.style.overflow=''; }
+    function enterReadingMode() {
+      overlay.classList.add('show');
+      document.body.style.overflow='hidden';
+    }
 
-    // -------------------------
-    // Sentence navigation (ONLY when paused)
-    // -------------------------
+    function exitReadingMode() {
+      pause();
+      overlay.classList.remove('show');
+      document.body.style.overflow='';
+    }
+
     function getCurrentSentenceIndex() {
       const at = Math.max(0, Math.min(words.length - 1, Math.max(0, idx - 1)));
       return wordToSentence[at] ?? 0;
@@ -701,9 +697,9 @@
 
     tapCatcher.addEventListener('click', ()=>togglePlayPause());
 
-    // -------------------------
-    // Save/Load/Delete/Restart
-    // -------------------------
+    /* ==========================
+       SAVE/LOAD
+       ========================== */
     saveBtn.addEventListener('click', ()=>{
       const name=(saveName.value||"").trim();
       const text=normalizeText(textInput.value||"");
@@ -712,6 +708,7 @@
 
       const map=loadSavedTexts();
       const prev=map[name];
+
       let progressWordIndex=0;
       if(prev && (prev.text||"")===text) progressWordIndex=prev.progressWordIndex||0;
 
@@ -764,6 +761,7 @@
       entry.updatedAt=Date.now();
       map[currentDocName]=entry;
       saveSavedTexts(map);
+
       updateResumeHint();
       alert("Progress reset ✅");
     });
@@ -775,9 +773,9 @@
       updateResumeHint();
     });
 
-    // -------------------------
-    // Start reading (auto resume)
-    // -------------------------
+    /* ==========================
+       START READING
+       ========================== */
     startBtn.addEventListener('click', ()=>{
       const raw=normalizeText(textInput.value||"");
       if(!raw){alert("Paste some text first.");return;}
@@ -788,7 +786,6 @@
       wordToSentence=built.wordToSentence;
 
       idx=0;
-
       if(currentDocName){
         const map=loadSavedTexts();
         const entry=map[currentDocName];
@@ -813,9 +810,11 @@
 
     exitBtn.addEventListener('click', ()=>exitReadingMode());
 
-    // -------------------------
-    // PDF import (fixed + robust)
-    // -------------------------
+    /* ==========================
+       PDF IMPORT (DIFFERENT APPROACH)
+       ✅ PDF.js legacy + workerless
+       ✅ Per-page fallback OCR when text is missing
+       ========================== */
     pdfBtn.addEventListener('click', ()=>{
       pdfInput.value="";
       pdfInput.click();
@@ -840,59 +839,52 @@
       );
     }
 
-    async function openPdfDocument(uint8) {
-      // First attempt: normal worker mode
-      try {
-        const loadingTask = pdfjsLib.getDocument({ data:uint8 });
-        return await loadingTask.promise;
-      } catch (e) {
-        // Fallback: disableWorker (more compatible on iOS / homescreen)
-        const loadingTask = pdfjsLib.getDocument({ data:uint8, disableWorker:true });
-        return await loadingTask.promise;
-      }
-    }
-
-    async function extractPdfSmartAuto(file){
+    async function extractPdfTextOrOcr(file){
       const buf = await file.arrayBuffer();
       const uint8 = new Uint8Array(buf);
 
       pdfStatus.textContent = "Opening PDF…";
-      const pdf = await openPdfDocument(uint8);
+
+      // IMPORTANT: disableWorker=true for max iOS compatibility
+      const loadingTask = pdfjsLib.getDocument({ data: uint8, disableWorker: true });
+      const pdf = await loadingTask.promise;
 
       const pageCount = pdf.numPages;
 
-      // Create ONE OCR worker
+      // OCR worker once
       const worker = await Tesseract.createWorker("eng");
 
-      // OCR only when needed, cap OCR pages automatically for iPhone safety
-      const OCR_TEXT_THRESHOLD = 60; // chars/page
-      const MAX_OCR_PAGES = 35;
+      // OCR heuristic + cap for iPhone safety (auto)
+      const OCR_TEXT_THRESHOLD = 60;
+      const MAX_OCR_PAGES = 40;
       let ocrUsed = 0;
 
       const out = [];
 
-      try{
-        for(let p=1; p<=pageCount; p++){
+      try {
+        for (let p = 1; p <= pageCount; p++) {
           pdfStatus.textContent = `Reading PDF… Page ${p}/${pageCount}`;
           const page = await pdf.getPage(p);
 
-          // Fast text extraction per page
+          // Fast extraction
           let fastText = "";
-          try{
+          try {
             const content = await page.getTextContent();
-            const strings = content.items.map(it => (it.str||"").trim()).filter(Boolean);
+            const strings = content.items.map(it => (it.str || "").trim()).filter(Boolean);
             fastText = strings.join(" ");
-          } catch { fastText = ""; }
+          } catch {
+            fastText = "";
+          }
 
           const fastLen = normalizeText(fastText).length;
           const shouldOcr = fastLen < OCR_TEXT_THRESHOLD;
 
-          if(!shouldOcr){
+          if (!shouldOcr) {
             out.push(normalizeText(fastText));
             continue;
           }
 
-          if(ocrUsed >= MAX_OCR_PAGES){
+          if (ocrUsed >= MAX_OCR_PAGES) {
             out.push(normalizeText(fastText));
             continue;
           }
@@ -908,37 +900,38 @@
         await worker.terminate();
       }
 
-      return { text: normalizeText(out.filter(Boolean).join("\n\n")), pages:pageCount, ocrPages:ocrUsed };
+      return { text: normalizeText(out.filter(Boolean).join("\n\n")), pages: pageCount, ocrPages: ocrUsed };
     }
 
     pdfInput.addEventListener('change', async ()=>{
       const file = pdfInput.files && pdfInput.files[0];
-      if(!file) return;
+      if (!file) return;
 
       pdfStatus.textContent = "Loading PDF…";
 
-      try{
-        const res = await extractPdfSmartAuto(file);
-        if(!res.text){
+      try {
+        const res = await extractPdfTextOrOcr(file);
+        if (!res.text) {
           pdfStatus.textContent = "PDF loaded, but no readable text found.";
           alert("No readable text found.");
           return;
         }
         textInput.value = res.text;
-        const k = Math.round(res.text.length/1000);
+
+        const k = Math.round(res.text.length / 1000);
         pdfStatus.textContent = res.ocrPages > 0
           ? `PDF loaded ✅ (${res.pages} pages, OCR ${res.ocrPages}p, ~${k}k chars)`
           : `PDF loaded ✅ (${res.pages} pages, ~${k}k chars)`;
-      } catch(err){
-        console.error(err);
-        pdfStatus.textContent = "Failed to load PDF ❌";
-        alert("PDF load failed. (Worker / Safari issue fixed in this version—if it still fails, send the console error.)");
+      } catch (err) {
+        // no console needed
+        pdfStatus.textContent = "PDF load failed ❌";
+        alert("PDF load failed on this device. Try a smaller PDF or share the PDF file with fewer pages.");
       }
     });
 
-    // -------------------------
-    // Init
-    // -------------------------
+    /* ==========================
+       INIT
+       ========================== */
     applyPrefs();
     refreshSavedDropdown();
     updateResumeHint();
